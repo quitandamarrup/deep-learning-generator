@@ -62,12 +62,15 @@ const defaultForm: RppInputType = {
 
 function Index() {
   const runGenerate = useServerFn(generateRPP);
+  const runAnalyze = useServerFn(analyzeCP);
   const [form, setForm] = useState<RppInputType>(defaultForm);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<string>("");
   const [editing, setEditing] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [topics, setTopics] = useState<CpTopic[] | null>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setUser(data.session?.user ?? null));
