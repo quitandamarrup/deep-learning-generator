@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
-import { Loader2, Copy, Printer, Download, RefreshCw, Pencil, FileText, LogOut } from "lucide-react";
+import { Loader2, Copy, Printer, Download, RefreshCw, Pencil, FileText, LogOut, Sparkles, Trash2, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
 import type { User } from "@supabase/supabase-js";
