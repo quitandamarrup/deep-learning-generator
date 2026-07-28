@@ -1,14 +1,31 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { generateRPP, type RppInputType } from "@/lib/rpp.functions";
 import { analyzeCP, type CpTopic } from "@/lib/cp-analysis.functions";
+import {
+  DOC_LABELS,
+  DOC_TYPES,
+  generateDoc,
+  type DocContextType,
+  type DocType,
+} from "@/lib/admin-docs.functions";
+import { checkAccess, redeemToken, isAdmin as isAdminFn } from "@/lib/tokens.functions";
+import { downloadDocx, downloadPdf, downloadZipOfDocs } from "@/lib/exporters";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -18,24 +35,40 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
-import { Loader2, Copy, Printer, Download, RefreshCw, Pencil, FileText, LogOut, Sparkles, Trash2, Plus } from "lucide-react";
+import {
+  Loader2,
+  Download,
+  FileText,
+  LogOut,
+  Sparkles,
+  Trash2,
+  Plus,
+  Key,
+  MessageCircle,
+  Shield,
+  Package,
+  FileDown,
+  FileType,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
 import type { User } from "@supabase/supabase-js";
+import { Link } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Generator RPP Pembelajaran Mendalam" },
+      { title: "Generator Administrasi Pembelajaran" },
       {
         name: "description",
         content:
-          "Buat perencanaan pembelajaran yang sistematis, kontekstual, dan sesuai kebutuhan peserta didik.",
+          "Generator lengkap RPP, TP, ATP, PROTA, PROSEM, KKTP, Modul Ajar, LKPD, Asesmen, dan Rubrik berbasis Analisis CP.",
       },
-      { property: "og:title", content: "Generator RPP Pembelajaran Mendalam" },
+      { property: "og:title", content: "Generator Administrasi Pembelajaran" },
       {
         property: "og:description",
-        content: "Generator RPP otomatis untuk semua mata pelajaran dan jenjang.",
+        content:
+          "Buat seluruh administrasi pembelajaran otomatis dari satu Capaian Pembelajaran.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -44,7 +77,21 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
-const defaultForm: RppInputType = {
+type FormState = {
+  penyusun: string;
+  satuan: string;
+  tahunAjaran: string;
+  semester: string;
+  jenjang: string;
+  kelas: string;
+  fase: string;
+  mapel: string;
+  alokasi: string;
+  cp: string;
+  info: string;
+};
+
+const defaultForm: FormState = {
   penyusun: "",
   satuan: "",
   tahunAjaran: "",
@@ -53,24 +100,40 @@ const defaultForm: RppInputType = {
   kelas: "",
   fase: "",
   mapel: "",
-  materi: "",
   alokasi: "",
-  pertemuan: "1",
   cp: "",
   info: "",
 };
 
+// Docs where a specific topic is required
+const TOPIC_SCOPED: DocType[] = ["RPP", "MODUL", "MATERI", "LKPD", "ASESMEN", "KISI", "SOAL", "RUBRIK"];
+
 function Index() {
-  const runGenerate = useServerFn(generateRPP);
   const runAnalyze = useServerFn(analyzeCP);
-  const [form, setForm] = useState<RppInputType>(defaultForm);
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<string>("");
-  const [editing, setEditing] = useState(false);
+  const runGenerate = useServerFn(generateDoc);
+  const runCheckAccess = useServerFn(checkAccess);
+  const runRedeem = useServerFn(redeemToken);
+  const runIsAdmin = useServerFn(isAdminFn);
+
+  const [form, setForm] = useState<FormState>(defaultForm);
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+
   const [analyzing, setAnalyzing] = useState(false);
   const [topics, setTopics] = useState<CpTopic[] | null>(null);
+  const [selectedTopicNo, setSelectedTopicNo] = useState<number | null>(null);
+
+  const [selectedDocs, setSelectedDocs] = useState<Set<DocType>>(new Set(["RPP"]));
+  const [generatingDoc, setGeneratingDoc] = useState<DocType | null>(null);
+  const [generatingAll, setGeneratingAll] = useState(false);
+  const [docs, setDocs] = useState<Partial<Record<DocType, string>>>({});
+  const [activeTab, setActiveTab] = useState<DocType | null>(null);
+
+  const [hasAccess, setHasAccess] = useState(false);
+  const [tokenOpen, setTokenOpen] = useState(false);
+  const [tokenValue, setTokenValue] = useState("");
+  const [verifying, setVerifying] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setUser(data.session?.user ?? null));
@@ -79,6 +142,26 @@ function Index() {
     });
     return () => sub.subscription.unsubscribe();
   }, []);
+
+  // Check admin + access when user or mapel changes
+  useEffect(() => {
+    if (!user) {
+      setIsAdmin(false);
+      setHasAccess(false);
+      return;
+    }
+    runIsAdmin().then((r) => setIsAdmin(r.isAdmin)).catch(() => {});
+  }, [user, runIsAdmin]);
+
+  useEffect(() => {
+    if (!user || !form.mapel.trim()) {
+      setHasAccess(false);
+      return;
+    }
+    runCheckAccess({ data: { subject: form.mapel } })
+      .then((r) => setHasAccess(r.hasAccess))
+      .catch(() => setHasAccess(false));
+  }, [user, form.mapel, runCheckAccess]);
 
   const handleSignIn = async () => {
     setAuthLoading(true);
@@ -96,14 +179,16 @@ function Index() {
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
-    setResult("");
+    setDocs({});
+    setTopics(null);
+    setSelectedTopicNo(null);
     toast.success("Anda telah keluar.");
   };
 
-  const update = (k: keyof RppInputType, v: string) => setForm((f) => ({ ...f, [k]: v }));
+  const update = (k: keyof FormState, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
-  const validate = () => {
-    const required: (keyof RppInputType)[] = [
+  const requireContext = (needTopic = false): DocContextType | null => {
+    const need: (keyof FormState)[] = [
       "penyusun",
       "satuan",
       "tahunAjaran",
@@ -112,48 +197,45 @@ function Index() {
       "kelas",
       "fase",
       "mapel",
-      "materi",
       "alokasi",
-      "pertemuan",
       "cp",
     ];
-    for (const k of required) {
-      if (!form[k] || !String(form[k]).trim()) {
-        toast.error("Mohon lengkapi semua field wajib.");
-        return false;
+    for (const k of need) {
+      if (!form[k]?.trim()) {
+        toast.error("Lengkapi semua data wajib pada form.");
+        return null;
       }
     }
-    return true;
-  };
-
-  const submit = async () => {
-    if (!user) {
-      toast.error("Silakan masuk dengan akun Google untuk membuat dokumen.");
-      return;
+    if (!topics || topics.length === 0) {
+      toast.error("Jalankan Analisis CP terlebih dahulu untuk menentukan materi & pertemuan.");
+      return null;
     }
-    if (!validate()) return;
-    setLoading(true);
-    try {
-      const res = await runGenerate({ data: form });
-      setResult(res.markdown);
-      setEditing(false);
-      setTimeout(
-        () => document.getElementById("rpp-result")?.scrollIntoView({ behavior: "smooth" }),
-        100,
-      );
-    } catch (e) {
-      console.error(e);
-      toast.error("Gagal membuat RPP. Silakan coba lagi.");
-    } finally {
-      setLoading(false);
+    if (needTopic && !selectedTopicNo) {
+      toast.error("Pilih salah satu materi hasil Analisis CP.");
+      return null;
     }
+    return {
+      penyusun: form.penyusun,
+      satuan: form.satuan,
+      tahunAjaran: form.tahunAjaran,
+      semester: form.semester,
+      jenjang: form.jenjang,
+      kelas: form.kelas,
+      fase: form.fase,
+      mapel: form.mapel,
+      cp: form.cp,
+      alokasiPerPertemuan: form.alokasi,
+      info: form.info,
+      topics,
+      selectedTopicNo: selectedTopicNo ?? undefined,
+    };
   };
 
   const handleAnalyze = async () => {
-    const need: (keyof RppInputType)[] = ["jenjang", "kelas", "fase", "mapel", "semester", "cp", "alokasi"];
+    const need: (keyof FormState)[] = ["jenjang", "kelas", "fase", "mapel", "semester", "cp", "alokasi"];
     for (const k of need) {
-      if (!form[k] || !String(form[k]).trim()) {
-        toast.error("Lengkapi Jenjang, Kelas, Fase, Mapel, Semester, CP, dan Alokasi JP per pertemuan.");
+      if (!form[k]?.trim()) {
+        toast.error("Lengkapi Jenjang, Kelas, Fase, Mapel, Semester, CP, dan Alokasi JP.");
         return;
       }
     }
@@ -171,13 +253,16 @@ function Index() {
         },
       });
       setTopics(res.topics);
+      setSelectedTopicNo(res.topics[0]?.no ?? null);
+      setDocs({}); // invalidate old docs
+      setActiveTab(null);
       setTimeout(
         () => document.getElementById("cp-analysis")?.scrollIntoView({ behavior: "smooth" }),
         100,
       );
     } catch (e) {
       console.error(e);
-      toast.error("Gagal menganalisis CP. Silakan coba lagi.");
+      toast.error("Gagal menganalisis CP. Coba lagi.");
     } finally {
       setAnalyzing(false);
     }
@@ -203,36 +288,154 @@ function Index() {
     });
   };
 
-  const pickTopic = (t: CpTopic) => {
-    setForm((f) => ({
-      ...f,
-      materi: t.materi,
-      pertemuan: String(t.pertemuan),
-      alokasi: t.alokasi || f.alokasi,
-    }));
-    toast.success(`Topik "${t.materi || "(tanpa judul)"}" digunakan. Klik Generate RPP.`);
-    setTimeout(
-      () => document.getElementById("form-section")?.scrollIntoView({ behavior: "smooth" }),
-      100,
+  const toggleDoc = (d: DocType) => {
+    setSelectedDocs((s) => {
+      const n = new Set(s);
+      if (n.has(d)) n.delete(d);
+      else n.add(d);
+      return n;
+    });
+  };
+
+  const generateOne = async (docType: DocType, ctx: DocContextType) => {
+    const res = await runGenerate({ data: { docType, context: ctx } });
+    setDocs((prev) => ({ ...prev, [docType]: res.markdown }));
+    return res.markdown;
+  };
+
+  const handleGenerateSelected = async () => {
+    if (!user) {
+      toast.error("Silakan masuk dengan Google terlebih dahulu.");
+      return;
+    }
+    if (selectedDocs.size === 0) {
+      toast.error("Pilih minimal satu jenis dokumen.");
+      return;
+    }
+    const needTopic = Array.from(selectedDocs).some((d) => TOPIC_SCOPED.includes(d));
+    const ctx = requireContext(needTopic);
+    if (!ctx) return;
+    for (const d of Array.from(selectedDocs)) {
+      setGeneratingDoc(d);
+      try {
+        await generateOne(d, ctx);
+        setActiveTab(d);
+      } catch (e) {
+        console.error(e);
+        toast.error(`Gagal membuat ${DOC_LABELS[d]}.`);
+      }
+    }
+    setGeneratingDoc(null);
+    toast.success("Dokumen selesai dibuat.");
+  };
+
+  const handleGenerateAll = async () => {
+    if (!user) {
+      toast.error("Silakan masuk dengan Google terlebih dahulu.");
+      return;
+    }
+    const ctx = requireContext(true);
+    if (!ctx) return;
+    setGeneratingAll(true);
+    try {
+      for (const d of DOC_TYPES) {
+        setGeneratingDoc(d);
+        try {
+          await generateOne(d, ctx);
+          setActiveTab(d);
+        } catch (e) {
+          console.error(e);
+          toast.error(`Gagal membuat ${DOC_LABELS[d]}.`);
+        }
+      }
+      toast.success("Seluruh administrasi berhasil dibuat.");
+    } finally {
+      setGeneratingDoc(null);
+      setGeneratingAll(false);
+    }
+  };
+
+  const ensureAccess = async (): Promise<boolean> => {
+    if (!user) {
+      toast.error("Silakan masuk dengan Google terlebih dahulu.");
+      return false;
+    }
+    if (!form.mapel.trim()) {
+      toast.error("Isi Mata Pelajaran terlebih dahulu.");
+      return false;
+    }
+    if (hasAccess) return true;
+    setTokenOpen(true);
+    return false;
+  };
+
+  const handleVerifyToken = async () => {
+    if (!tokenValue.trim()) {
+      toast.error("Masukkan token.");
+      return;
+    }
+    setVerifying(true);
+    try {
+      const res = await runRedeem({
+        data: { token: tokenValue.trim(), subject: form.mapel },
+      });
+      if (res.ok) {
+        toast.success("Token berhasil digunakan. Anda dapat mengunduh seluruh dokumen mapel ini.");
+        setHasAccess(true);
+        setTokenOpen(false);
+        setTokenValue("");
+      } else {
+        toast.error(res.reason ?? "Token tidak valid.");
+      }
+    } catch (e) {
+      console.error(e);
+      toast.error("Gagal memverifikasi token.");
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  const waLink = useMemo(() => {
+    const t = selectedTopicNo ? topics?.find((x) => x.no === selectedTopicNo) : undefined;
+    const msg = `Halo Admin, saya ingin meminta token download Administrasi Pembelajaran.\n\nNama: ${form.penyusun || "-"}\nMata Pelajaran: ${form.mapel || "-"}\nJenjang: ${form.jenjang || "-"}\nKelas/Fase: ${form.kelas || "-"}/${form.fase || "-"}${t ? `\nTopik: ${t.materi}` : ""}`;
+    return `https://wa.me/6289502690216?text=${encodeURIComponent(msg)}`;
+  }, [form, selectedTopicNo, topics]);
+
+  const filenameFor = (d: DocType) =>
+    `${d}-${(form.mapel || "output").replace(/\s+/g, "_")}-${(form.kelas || "").replace(/\s+/g, "_")}`;
+
+  const handleDownload = async (d: DocType, fmt: "docx" | "pdf") => {
+    const md = docs[d];
+    if (!md) return;
+    const ok = await ensureAccess();
+    if (!ok) return;
+    const title = `${DOC_LABELS[d]} — ${form.mapel} ${form.kelas}`;
+    if (fmt === "docx") await downloadDocx(filenameFor(d), md, title);
+    else downloadPdf(filenameFor(d), md, title);
+  };
+
+  const handleDownloadAll = async (fmt: "docx" | "pdf") => {
+    const entries = (Object.entries(docs) as [DocType, string][]).filter(([, v]) => !!v);
+    if (entries.length === 0) {
+      toast.error("Belum ada dokumen yang dibuat.");
+      return;
+    }
+    const ok = await ensureAccess();
+    if (!ok) return;
+    await downloadZipOfDocs(
+      `Administrasi-${(form.mapel || "output").replace(/\s+/g, "_")}-${(form.kelas || "").replace(/\s+/g, "_")}`,
+      entries.map(([d, md]) => ({
+        key: d,
+        filename: filenameFor(d),
+        markdown: md,
+        title: `${DOC_LABELS[d]} — ${form.mapel} ${form.kelas}`,
+      })),
+      fmt,
     );
   };
 
-  const handleCopy = async () => {
-    await navigator.clipboard.writeText(result);
-    toast.success("RPP disalin ke clipboard.");
-  };
-
-  const handlePrint = () => window.print();
-
-  const handleDownload = () => {
-    const blob = new Blob([result], { type: "text/markdown;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `RPP-${form.mapel || "output"}-${form.kelas || ""}.md`.replace(/\s+/g, "_");
-    a.click();
-    URL.revokeObjectURL(url);
-  };
+  const generatedList = (Object.keys(docs) as DocType[]).filter((d) => !!docs[d]);
+  const currentTab = activeTab && docs[activeTab] ? activeTab : generatedList[0] ?? null;
 
   return (
     <div className="min-h-screen bg-slate-50 print:bg-white">
@@ -245,14 +448,20 @@ function Index() {
             </div>
             <div className="min-w-0 flex-1">
               <h1 className="truncate text-xl font-bold sm:text-2xl">
-                Generator RPP Pembelajaran Mendalam
+                Generator Administrasi Pembelajaran
               </h1>
               <p className="mt-1 text-sm text-white/80">
-                Buat perencanaan pembelajaran yang sistematis, kontekstual, dan sesuai kebutuhan
-                peserta didik.
+                RPP, TP, ATP, PROTA, PROSEM, KKTP, Modul, LKPD, Asesmen, Rubrik — dari satu CP.
               </p>
             </div>
-            <div className="shrink-0">
+            <div className="shrink-0 flex items-center gap-2">
+              {isAdmin && (
+                <Link to="/admin/tokens">
+                  <Button size="sm" variant="secondary" className="bg-white/10 text-white hover:bg-white/20 border-0">
+                    <Shield className="mr-1.5 h-4 w-4" /> Admin
+                  </Button>
+                </Link>
+              )}
               {user ? (
                 <div className="flex items-center gap-2 sm:gap-3">
                   {user.user_metadata?.avatar_url && (
@@ -289,7 +498,7 @@ function Index() {
                     <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
                   ) : (
                     <svg className="mr-1.5 h-4 w-4" viewBox="0 0 24 24" aria-hidden>
-                      <path fill="#EA4335" d="M12 10.2v3.9h5.5c-.2 1.4-1.6 4-5.5 4-3.3 0-6-2.7-6-6.1s2.7-6.1 6-6.1c1.9 0 3.1.8 3.8 1.5l2.6-2.5C16.9 3.4 14.7 2.4 12 2.4 6.7 2.4 2.4 6.7 2.4 12S6.7 21.6 12 21.6c6.9 0 9.5-4.8 9.5-7.3 0-.5 0-.9-.1-1.3H12z"/>
+                      <path fill="#EA4335" d="M12 10.2v3.9h5.5c-.2 1.4-1.6 4-5.5 4-3.3 0-6-2.7-6-6.1s2.7-6.1 6-6.1c1.9 0 3.1.8 3.8 1.5l2.6-2.5C16.9 3.4 14.7 2.4 12 2.4 6.7 2.4 2.4 6.7 2.4 12S6.7 21.6 12 21.6c6.9 0 9.5-4.8 9.5-7.3 0-.5 0-.9-.1-1.3H12z" />
                     </svg>
                   )}
                   Masuk dengan Google
@@ -304,7 +513,7 @@ function Index() {
         <section id="form-section" className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:p-7 print:hidden">
           <h2 className="text-lg font-semibold text-slate-800">Data Perencanaan</h2>
           <p className="text-sm text-slate-500">
-            Lengkapi form berikut untuk menghasilkan RPP secara otomatis.
+            Materi/Topik & jumlah pertemuan diperoleh otomatis dari Analisis CP.
           </p>
 
           <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -363,22 +572,11 @@ function Index() {
             <Field label="Mata Pelajaran">
               <Input value={form.mapel} onChange={(e) => update("mapel", e.target.value)} />
             </Field>
-            <Field label="Materi/Topik" className="sm:col-span-2">
-              <Input value={form.materi} onChange={(e) => update("materi", e.target.value)} />
-            </Field>
             <Field label="Alokasi JP per Pertemuan">
               <Input
                 placeholder="cth. 2 x 40 menit"
                 value={form.alokasi}
                 onChange={(e) => update("alokasi", e.target.value)}
-              />
-            </Field>
-            <Field label="Jumlah Pertemuan">
-              <Input
-                type="number"
-                min={1}
-                value={form.pertemuan}
-                onChange={(e) => update("pertemuan", e.target.value)}
               />
             </Field>
             <Field label="Capaian Pembelajaran" className="sm:col-span-2">
@@ -403,9 +601,8 @@ function Index() {
             <Button
               onClick={handleAnalyze}
               disabled={analyzing}
-              variant="outline"
               size="lg"
-              className="border-[#0f2b5b] text-[#0f2b5b] hover:bg-[#0f2b5b]/5"
+              className="bg-[#0f2b5b] hover:bg-[#0a1f45]"
             >
               {analyzing ? (
                 <>
@@ -419,26 +616,6 @@ function Index() {
                 </>
               )}
             </Button>
-            <Button
-              onClick={submit}
-              disabled={loading}
-              className="bg-[#0f2b5b] hover:bg-[#0a1f45]"
-              size="lg"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Menyusun RPP...
-                </>
-              ) : (
-                "Generate RPP"
-              )}
-            </Button>
-            {loading && (
-              <span className="text-sm text-slate-500">
-                Ini dapat memakan waktu 20–60 detik. Mohon tunggu.
-              </span>
-            )}
           </div>
         </section>
 
@@ -451,7 +628,8 @@ function Index() {
               <div>
                 <h2 className="text-lg font-semibold text-slate-800">Hasil Analisis CP</h2>
                 <p className="text-sm text-slate-500">
-                  Rekomendasi pembagian materi. Semua kolom dapat diedit. Pilih "Buat RPP" untuk menggunakan topik.
+                  Pilih materi (radio) untuk dokumen yang berbasis 1 topik (RPP, Modul, LKPD, dst).
+                  Dokumen ATP/PROTA/PROSEM/TP/KKTP menggunakan seluruh baris.
                 </p>
               </div>
               <Button variant="outline" size="sm" onClick={addTopic}>
@@ -463,17 +641,26 @@ function Index() {
               <table className="w-full border-collapse text-sm">
                 <thead>
                   <tr className="bg-slate-100 text-left text-slate-700">
+                    <th className="border border-slate-200 px-2 py-2 w-16">Pilih</th>
                     <th className="border border-slate-200 px-2 py-2 w-10">No</th>
                     <th className="border border-slate-200 px-2 py-2 min-w-[180px]">Materi/Topik</th>
                     <th className="border border-slate-200 px-2 py-2 min-w-[220px]">Kompetensi/Tujuan Utama</th>
-                    <th className="border border-slate-200 px-2 py-2 w-28">Pertemuan</th>
+                    <th className="border border-slate-200 px-2 py-2 w-24">Pertemuan</th>
                     <th className="border border-slate-200 px-2 py-2 min-w-[140px]">Alokasi JP</th>
-                    <th className="border border-slate-200 px-2 py-2 w-40">Aksi</th>
+                    <th className="border border-slate-200 px-2 py-2 w-16">Aksi</th>
                   </tr>
                 </thead>
                 <tbody>
                   {topics.map((t, i) => (
                     <tr key={i} className="align-top">
+                      <td className="border border-slate-200 px-2 py-2 text-center">
+                        <input
+                          type="radio"
+                          name="topic-select"
+                          checked={selectedTopicNo === t.no}
+                          onChange={() => setSelectedTopicNo(t.no)}
+                        />
+                      </td>
                       <td className="border border-slate-200 px-2 py-2 text-center text-slate-600">
                         {t.no}
                       </td>
@@ -511,79 +698,182 @@ function Index() {
                           onChange={(e) => updateTopic(i, { alokasi: e.target.value })}
                         />
                       </td>
-                      <td className="border border-slate-200 px-1 py-1">
-                        <div className="flex flex-col gap-1.5">
-                          <Button
-                            size="sm"
-                            className="bg-[#0f2b5b] hover:bg-[#0a1f45]"
-                            onClick={() => pickTopic(t)}
-                          >
-                            Buat RPP
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => removeTopic(i)}
-                            className="text-red-600 hover:bg-red-50 hover:text-red-700"
-                          >
-                            <Trash2 className="mr-1 h-3.5 w-3.5" /> Hapus
-                          </Button>
-                        </div>
+                      <td className="border border-slate-200 px-1 py-1 text-center">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => removeTopic(i)}
+                          className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-          </section>
-        )}
 
+            {/* Doc chooser */}
+            <div className="mt-6">
+              <h3 className="text-sm font-semibold text-slate-800">Pilih Dokumen yang Akan Dibuat</h3>
+              <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {DOC_TYPES.map((d) => (
+                  <label key={d} className="flex items-start gap-2 rounded-md border border-slate-200 p-2 hover:bg-slate-50 cursor-pointer">
+                    <Checkbox
+                      checked={selectedDocs.has(d)}
+                      onCheckedChange={() => toggleDoc(d)}
+                    />
+                    <div className="text-sm">
+                      <div className="font-medium text-slate-800">{DOC_LABELS[d]}</div>
+                      {TOPIC_SCOPED.includes(d) && (
+                        <div className="text-xs text-slate-500">butuh 1 materi terpilih</div>
+                      )}
+                    </div>
+                  </label>
+                ))}
+              </div>
 
-        {result && (
-          <section id="rpp-result" className="mt-8">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-3 print:hidden">
-              <h2 className="text-lg font-semibold text-slate-800">Preview RPP</h2>
-              <div className="flex flex-wrap gap-2">
-                <Button variant="outline" size="sm" onClick={submit} disabled={loading}>
-                  <RefreshCw className="mr-1.5 h-4 w-4" /> Generate Ulang
+              <div className="mt-4 flex flex-wrap gap-3">
+                <Button
+                  onClick={handleGenerateSelected}
+                  disabled={generatingDoc !== null || generatingAll}
+                  className="bg-[#0f2b5b] hover:bg-[#0a1f45]"
+                >
+                  {generatingDoc && !generatingAll ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Membuat {generatingDoc}...
+                    </>
+                  ) : (
+                    <>
+                      <FileText className="mr-2 h-4 w-4" />
+                      Generate Terpilih ({selectedDocs.size})
+                    </>
+                  )}
                 </Button>
                 <Button
                   variant="outline"
-                  size="sm"
-                  onClick={() => setEditing((v) => !v)}
+                  onClick={handleGenerateAll}
+                  disabled={generatingAll || generatingDoc !== null}
+                  className="border-[#0f2b5b] text-[#0f2b5b]"
                 >
-                  <Pencil className="mr-1.5 h-4 w-4" /> {editing ? "Selesai Edit" : "Edit"}
+                  {generatingAll ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      {generatingDoc ? `Membuat ${generatingDoc}...` : "Menyusun..."}
+                    </>
+                  ) : (
+                    <>
+                      <Package className="mr-2 h-4 w-4" />
+                      Generate Semua Administrasi
+                    </>
+                  )}
                 </Button>
-                <Button variant="outline" size="sm" onClick={handleCopy}>
-                  <Copy className="mr-1.5 h-4 w-4" /> Salin
+              </div>
+            </div>
+          </section>
+        )}
+
+        {generatedList.length > 0 && (
+          <section id="docs-result" className="mt-8 rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:p-7 print:hidden">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-800">Preview Dokumen</h2>
+                <p className="text-sm text-slate-500">
+                  Preview gratis. Unduhan membutuhkan token
+                  {hasAccess ? " — token aktif untuk mapel ini." : "."}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" size="sm" onClick={() => handleDownloadAll("docx")}>
+                  <FileDown className="mr-1.5 h-4 w-4" /> Download Semua (DOCX)
                 </Button>
-                <Button variant="outline" size="sm" onClick={handlePrint}>
-                  <Printer className="mr-1.5 h-4 w-4" /> Cetak
-                </Button>
-                <Button variant="outline" size="sm" onClick={handleDownload}>
-                  <Download className="mr-1.5 h-4 w-4" /> Download
+                <Button variant="outline" size="sm" onClick={() => handleDownloadAll("pdf")}>
+                  <FileDown className="mr-1.5 h-4 w-4" /> Download Semua (PDF)
                 </Button>
               </div>
             </div>
 
-            {editing ? (
-              <Textarea
-                className="min-h-[70vh] font-mono text-sm"
-                value={result}
-                onChange={(e) => setResult(e.target.value)}
-              />
-            ) : (
-              <article className="rpp-doc rounded-lg border border-slate-200 bg-white p-6 shadow-sm sm:p-10 print:border-0 print:shadow-none">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{result}</ReactMarkdown>
-              </article>
+            {/* Doc tabs */}
+            <div className="mt-4 flex flex-wrap gap-2">
+              {generatedList.map((d) => (
+                <button
+                  key={d}
+                  onClick={() => setActiveTab(d)}
+                  className={`rounded-md border px-3 py-1.5 text-xs font-medium transition ${
+                    currentTab === d
+                      ? "border-[#0f2b5b] bg-[#0f2b5b] text-white"
+                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                  }`}
+                >
+                  {DOC_LABELS[d]}
+                </button>
+              ))}
+            </div>
+
+            {currentTab && (
+              <div className="mt-4">
+                <div className="mb-3 flex flex-wrap gap-2">
+                  <Button size="sm" variant="outline" onClick={() => handleDownload(currentTab, "docx")}>
+                    <FileType className="mr-1.5 h-4 w-4" /> DOCX
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => handleDownload(currentTab, "pdf")}>
+                    <Download className="mr-1.5 h-4 w-4" /> PDF
+                  </Button>
+                </div>
+                <article className="rpp-doc rounded-lg border border-slate-200 bg-white p-6 shadow-sm sm:p-10">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{docs[currentTab] ?? ""}</ReactMarkdown>
+                </article>
+              </div>
             )}
           </section>
         )}
 
         <footer className="mt-10 pb-6 text-center text-xs text-slate-400 print:hidden">
-          Generator RPP Pembelajaran Mendalam
+          Generator Administrasi Pembelajaran
         </footer>
       </main>
+
+      {/* Token modal */}
+      <Dialog open={tokenOpen} onOpenChange={setTokenOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Key className="h-5 w-5" /> Masukkan Token Download
+            </DialogTitle>
+            <DialogDescription>
+              Token ini akan terikat pada akun Anda + mata pelajaran{" "}
+              <b>{form.mapel || "-"}</b>. Setelah aktif, seluruh dokumen mapel ini dapat diunduh.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Input
+              placeholder="Contoh: A3F7K9M2P4Q8"
+              value={tokenValue}
+              onChange={(e) => setTokenValue(e.target.value.toUpperCase())}
+              autoFocus
+            />
+            <a
+              href={waLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-sm text-green-700 hover:underline"
+            >
+              <MessageCircle className="h-4 w-4" /> Belum punya token? Minta via WhatsApp
+            </a>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTokenOpen(false)}>
+              Batal
+            </Button>
+            <Button onClick={handleVerifyToken} disabled={verifying} className="bg-[#0f2b5b] hover:bg-[#0a1f45]">
+              {verifying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Verifikasi Token
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
