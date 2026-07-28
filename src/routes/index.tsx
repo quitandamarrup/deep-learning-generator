@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { generateRPP, type RppInputType } from "@/lib/rpp.functions";
@@ -17,7 +17,10 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
-import { Loader2, Copy, Printer, Download, RefreshCw, Pencil, FileText } from "lucide-react";
+import { Loader2, Copy, Printer, Download, RefreshCw, Pencil, FileText, LogOut } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { lovable } from "@/integrations/lovable/index";
+import type { User } from "@supabase/supabase-js";
 
 export const Route = createFileRoute("/")({
   head: () => ({
