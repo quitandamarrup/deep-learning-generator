@@ -149,6 +149,74 @@ function Index() {
     }
   };
 
+  const handleAnalyze = async () => {
+    const need: (keyof RppInputType)[] = ["jenjang", "kelas", "fase", "mapel", "semester", "cp", "alokasi"];
+    for (const k of need) {
+      if (!form[k] || !String(form[k]).trim()) {
+        toast.error("Lengkapi Jenjang, Kelas, Fase, Mapel, Semester, CP, dan Alokasi JP per pertemuan.");
+        return;
+      }
+    }
+    setAnalyzing(true);
+    try {
+      const res = await runAnalyze({
+        data: {
+          jenjang: form.jenjang,
+          kelas: form.kelas,
+          fase: form.fase,
+          mapel: form.mapel,
+          semester: form.semester,
+          cp: form.cp,
+          alokasiPerPertemuan: form.alokasi,
+        },
+      });
+      setTopics(res.topics);
+      setTimeout(
+        () => document.getElementById("cp-analysis")?.scrollIntoView({ behavior: "smooth" }),
+        100,
+      );
+    } catch (e) {
+      console.error(e);
+      toast.error("Gagal menganalisis CP. Silakan coba lagi.");
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  const updateTopic = (idx: number, patch: Partial<CpTopic>) => {
+    setTopics((ts) => (ts ? ts.map((t, i) => (i === idx ? { ...t, ...patch } : t)) : ts));
+  };
+  const removeTopic = (idx: number) => {
+    setTopics((ts) => (ts ? ts.filter((_, i) => i !== idx).map((t, i) => ({ ...t, no: i + 1 })) : ts));
+  };
+  const addTopic = () => {
+    setTopics((ts) => {
+      const next = ts ? [...ts] : [];
+      next.push({
+        no: next.length + 1,
+        materi: "",
+        kompetensi: "",
+        pertemuan: 1,
+        alokasi: `1 x (${form.alokasi || "..."})`,
+      });
+      return next;
+    });
+  };
+
+  const pickTopic = (t: CpTopic) => {
+    setForm((f) => ({
+      ...f,
+      materi: t.materi,
+      pertemuan: String(t.pertemuan),
+      alokasi: t.alokasi || f.alokasi,
+    }));
+    toast.success(`Topik "${t.materi || "(tanpa judul)"}" digunakan. Klik Generate RPP.`);
+    setTimeout(
+      () => document.getElementById("form-section")?.scrollIntoView({ behavior: "smooth" }),
+      100,
+    );
+  };
+
   const handleCopy = async () => {
     await navigator.clipboard.writeText(result);
     toast.success("RPP disalin ke clipboard.");
