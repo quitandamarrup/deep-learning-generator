@@ -142,3 +142,33 @@
     color: var(--color-foreground);
   }
 }
+
+/* RPP document typography */
+.rpp-doc {
+  color: #1f2937;
+  line-height: 1.7;
+  font-size: 15px;
+}
+.rpp-doc h1 { font-size: 1.6rem; font-weight: 800; margin: 1.2rem 0 0.6rem; color: #0f2b5b; }
+.rpp-doc h2 { font-size: 1.25rem; font-weight: 700; margin: 1.4rem 0 0.6rem; color: #0f2b5b; border-bottom: 2px solid #0f2b5b; padding-bottom: 0.25rem; }
+.rpp-doc h3 { font-size: 1.05rem; font-weight: 700; margin: 1rem 0 0.4rem; color: #1e3a8a; }
+.rpp-doc h4 { font-size: 0.98rem; font-weight: 700; margin: 0.8rem 0 0.3rem; color: #334155; }
+.rpp-doc p { margin: 0.5rem 0; }
+.rpp-doc ul, .rpp-doc ol { margin: 0.5rem 0 0.5rem 1.4rem; }
+.rpp-doc ul { list-style: disc; }
+.rpp-doc ol { list-style: decimal; }
+.rpp-doc li { margin: 0.2rem 0; }
+.rpp-doc strong { color: #0f172a; }
+.rpp-doc table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; font-size: 0.92rem; }
+.rpp-doc th, .rpp-doc td { border: 1px solid #cbd5e1; padding: 0.5rem 0.65rem; vertical-align: top; text-align: left; }
+.rpp-doc th { background: #eef2f7; font-weight: 700; }
+.rpp-doc code { background: #f1f5f9; padding: 0.1rem 0.3rem; border-radius: 4px; font-size: 0.9em; }
+.rpp-doc hr { border: 0; border-top: 1px solid #e2e8f0; margin: 1rem 0; }
+
+@media print {
+  @page { margin: 18mm; }
+  body { background: #fff !important; }
+  .rpp-doc { box-shadow: none !important; border: 0 !important; padding: 0 !important; }
+  .rpp-doc h2 { break-after: avoid; }
+  .rpp-doc table { break-inside: avoid; }
+}
