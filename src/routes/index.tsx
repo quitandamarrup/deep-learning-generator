@@ -301,7 +301,7 @@ function Index() {
       </header>
 
       <main className="mx-auto max-w-6xl px-4 py-6 sm:py-8">
-        <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:p-7 print:hidden">
+        <section id="form-section" className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:p-7 print:hidden">
           <h2 className="text-lg font-semibold text-slate-800">Data Perencanaan</h2>
           <p className="text-sm text-slate-500">
             Lengkapi form berikut untuk menghasilkan RPP secara otomatis.
