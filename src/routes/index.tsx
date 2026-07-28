@@ -401,6 +401,25 @@ function Index() {
 
           <div className="mt-6 flex flex-wrap items-center gap-3">
             <Button
+              onClick={handleAnalyze}
+              disabled={analyzing}
+              variant="outline"
+              size="lg"
+              className="border-[#0f2b5b] text-[#0f2b5b] hover:bg-[#0f2b5b]/5"
+            >
+              {analyzing ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Menganalisis CP...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  Analisis CP
+                </>
+              )}
+            </Button>
+            <Button
               onClick={submit}
               disabled={loading}
               className="bg-[#0f2b5b] hover:bg-[#0a1f45]"
@@ -422,6 +441,103 @@ function Index() {
             )}
           </div>
         </section>
+
+        {topics && (
+          <section
+            id="cp-analysis"
+            className="mt-8 rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:p-7 print:hidden"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-800">Hasil Analisis CP</h2>
+                <p className="text-sm text-slate-500">
+                  Rekomendasi pembagian materi. Semua kolom dapat diedit. Pilih "Buat RPP" untuk menggunakan topik.
+                </p>
+              </div>
+              <Button variant="outline" size="sm" onClick={addTopic}>
+                <Plus className="mr-1.5 h-4 w-4" /> Tambah Baris
+              </Button>
+            </div>
+
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full border-collapse text-sm">
+                <thead>
+                  <tr className="bg-slate-100 text-left text-slate-700">
+                    <th className="border border-slate-200 px-2 py-2 w-10">No</th>
+                    <th className="border border-slate-200 px-2 py-2 min-w-[180px]">Materi/Topik</th>
+                    <th className="border border-slate-200 px-2 py-2 min-w-[220px]">Kompetensi/Tujuan Utama</th>
+                    <th className="border border-slate-200 px-2 py-2 w-28">Pertemuan</th>
+                    <th className="border border-slate-200 px-2 py-2 min-w-[140px]">Alokasi JP</th>
+                    <th className="border border-slate-200 px-2 py-2 w-40">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {topics.map((t, i) => (
+                    <tr key={i} className="align-top">
+                      <td className="border border-slate-200 px-2 py-2 text-center text-slate-600">
+                        {t.no}
+                      </td>
+                      <td className="border border-slate-200 px-1 py-1">
+                        <Textarea
+                          rows={2}
+                          value={t.materi}
+                          onChange={(e) => updateTopic(i, { materi: e.target.value })}
+                          className="min-h-[40px]"
+                        />
+                      </td>
+                      <td className="border border-slate-200 px-1 py-1">
+                        <Textarea
+                          rows={3}
+                          value={t.kompetensi}
+                          onChange={(e) => updateTopic(i, { kompetensi: e.target.value })}
+                          className="min-h-[40px]"
+                        />
+                      </td>
+                      <td className="border border-slate-200 px-1 py-1">
+                        <Input
+                          type="number"
+                          min={1}
+                          value={t.pertemuan}
+                          onChange={(e) =>
+                            updateTopic(i, {
+                              pertemuan: Math.max(1, parseInt(e.target.value, 10) || 1),
+                            })
+                          }
+                        />
+                      </td>
+                      <td className="border border-slate-200 px-1 py-1">
+                        <Input
+                          value={t.alokasi}
+                          onChange={(e) => updateTopic(i, { alokasi: e.target.value })}
+                        />
+                      </td>
+                      <td className="border border-slate-200 px-1 py-1">
+                        <div className="flex flex-col gap-1.5">
+                          <Button
+                            size="sm"
+                            className="bg-[#0f2b5b] hover:bg-[#0a1f45]"
+                            onClick={() => pickTopic(t)}
+                          >
+                            Buat RPP
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => removeTopic(i)}
+                            className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                          >
+                            <Trash2 className="mr-1 h-3.5 w-3.5" /> Hapus
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+
 
         {result && (
           <section id="rpp-result" className="mt-8">
