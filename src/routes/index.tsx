@@ -123,6 +123,10 @@ function Index() {
   };
 
   const submit = async () => {
+    if (!user) {
+      toast.error("Silakan masuk dengan akun Google untuk membuat dokumen.");
+      return;
+    }
     if (!validate()) return;
     setLoading(true);
     try {
