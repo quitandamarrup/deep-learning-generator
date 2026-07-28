@@ -65,6 +65,36 @@ function Index() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<string>("");
   const [editing, setEditing] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(false);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setUser(data.session?.user ?? null));
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+      setUser(session?.user ?? null);
+    });
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
+  const handleSignIn = async () => {
+    setAuthLoading(true);
+    try {
+      const res = await lovable.auth.signInWithOAuth("google", {
+        redirect_uri: window.location.origin,
+      });
+      if (res.error) toast.error("Gagal masuk dengan Google.");
+    } catch {
+      toast.error("Gagal masuk dengan Google.");
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    setResult("");
+    toast.success("Anda telah keluar.");
+  };
 
   const update = (k: keyof RppInputType, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
