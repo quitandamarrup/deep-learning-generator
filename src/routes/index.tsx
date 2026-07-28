@@ -366,7 +366,7 @@ function Index() {
             <Field label="Materi/Topik" className="sm:col-span-2">
               <Input value={form.materi} onChange={(e) => update("materi", e.target.value)} />
             </Field>
-            <Field label="Alokasi Waktu">
+            <Field label="Alokasi JP per Pertemuan">
               <Input
                 placeholder="cth. 2 x 40 menit"
                 value={form.alokasi}
