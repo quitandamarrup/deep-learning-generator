@@ -171,7 +171,7 @@ function Index() {
             <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-white/10">
               <FileText className="h-6 w-6" />
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <h1 className="truncate text-xl font-bold sm:text-2xl">
                 Generator RPP Pembelajaran Mendalam
               </h1>
@@ -179,6 +179,50 @@ function Index() {
                 Buat perencanaan pembelajaran yang sistematis, kontekstual, dan sesuai kebutuhan
                 peserta didik.
               </p>
+            </div>
+            <div className="shrink-0">
+              {user ? (
+                <div className="flex items-center gap-2 sm:gap-3">
+                  {user.user_metadata?.avatar_url && (
+                    <img
+                      src={user.user_metadata.avatar_url}
+                      alt="Profil"
+                      className="h-9 w-9 rounded-full border border-white/20"
+                      referrerPolicy="no-referrer"
+                    />
+                  )}
+                  <div className="hidden text-right text-xs sm:block">
+                    <div className="font-medium">
+                      {user.user_metadata?.full_name || user.user_metadata?.name || "Pengguna"}
+                    </div>
+                    <div className="text-white/70">{user.email}</div>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={handleSignOut}
+                    className="bg-white/10 text-white hover:bg-white/20 border-0"
+                  >
+                    <LogOut className="mr-1.5 h-4 w-4" /> Keluar
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  size="sm"
+                  onClick={handleSignIn}
+                  disabled={authLoading}
+                  className="bg-white text-[#0f2b5b] hover:bg-white/90"
+                >
+                  {authLoading ? (
+                    <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                  ) : (
+                    <svg className="mr-1.5 h-4 w-4" viewBox="0 0 24 24" aria-hidden>
+                      <path fill="#EA4335" d="M12 10.2v3.9h5.5c-.2 1.4-1.6 4-5.5 4-3.3 0-6-2.7-6-6.1s2.7-6.1 6-6.1c1.9 0 3.1.8 3.8 1.5l2.6-2.5C16.9 3.4 14.7 2.4 12 2.4 6.7 2.4 2.4 6.7 2.4 12S6.7 21.6 12 21.6c6.9 0 9.5-4.8 9.5-7.3 0-.5 0-.9-.1-1.3H12z"/>
+                    </svg>
+                  )}
+                  Masuk dengan Google
+                </Button>
+              )}
             </div>
           </div>
         </div>
