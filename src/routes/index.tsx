@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { generateRPP, type RppInputType } from "@/lib/rpp.functions";
+import { analyzeCP, type CpTopic } from "@/lib/cp-analysis.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,7 +18,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
-import { Loader2, Copy, Printer, Download, RefreshCw, Pencil, FileText, LogOut } from "lucide-react";
+import { Loader2, Copy, Printer, Download, RefreshCw, Pencil, FileText, LogOut, Sparkles, Trash2, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
 import type { User } from "@supabase/supabase-js";
@@ -61,12 +62,15 @@ const defaultForm: RppInputType = {
 
 function Index() {
   const runGenerate = useServerFn(generateRPP);
+  const runAnalyze = useServerFn(analyzeCP);
   const [form, setForm] = useState<RppInputType>(defaultForm);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<string>("");
   const [editing, setEditing] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [topics, setTopics] = useState<CpTopic[] | null>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setUser(data.session?.user ?? null));
@@ -143,6 +147,74 @@ function Index() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleAnalyze = async () => {
+    const need: (keyof RppInputType)[] = ["jenjang", "kelas", "fase", "mapel", "semester", "cp", "alokasi"];
+    for (const k of need) {
+      if (!form[k] || !String(form[k]).trim()) {
+        toast.error("Lengkapi Jenjang, Kelas, Fase, Mapel, Semester, CP, dan Alokasi JP per pertemuan.");
+        return;
+      }
+    }
+    setAnalyzing(true);
+    try {
+      const res = await runAnalyze({
+        data: {
+          jenjang: form.jenjang,
+          kelas: form.kelas,
+          fase: form.fase,
+          mapel: form.mapel,
+          semester: form.semester,
+          cp: form.cp,
+          alokasiPerPertemuan: form.alokasi,
+        },
+      });
+      setTopics(res.topics);
+      setTimeout(
+        () => document.getElementById("cp-analysis")?.scrollIntoView({ behavior: "smooth" }),
+        100,
+      );
+    } catch (e) {
+      console.error(e);
+      toast.error("Gagal menganalisis CP. Silakan coba lagi.");
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  const updateTopic = (idx: number, patch: Partial<CpTopic>) => {
+    setTopics((ts) => (ts ? ts.map((t, i) => (i === idx ? { ...t, ...patch } : t)) : ts));
+  };
+  const removeTopic = (idx: number) => {
+    setTopics((ts) => (ts ? ts.filter((_, i) => i !== idx).map((t, i) => ({ ...t, no: i + 1 })) : ts));
+  };
+  const addTopic = () => {
+    setTopics((ts) => {
+      const next = ts ? [...ts] : [];
+      next.push({
+        no: next.length + 1,
+        materi: "",
+        kompetensi: "",
+        pertemuan: 1,
+        alokasi: `1 x (${form.alokasi || "..."})`,
+      });
+      return next;
+    });
+  };
+
+  const pickTopic = (t: CpTopic) => {
+    setForm((f) => ({
+      ...f,
+      materi: t.materi,
+      pertemuan: String(t.pertemuan),
+      alokasi: t.alokasi || f.alokasi,
+    }));
+    toast.success(`Topik "${t.materi || "(tanpa judul)"}" digunakan. Klik Generate RPP.`);
+    setTimeout(
+      () => document.getElementById("form-section")?.scrollIntoView({ behavior: "smooth" }),
+      100,
+    );
   };
 
   const handleCopy = async () => {
@@ -229,7 +301,7 @@ function Index() {
       </header>
 
       <main className="mx-auto max-w-6xl px-4 py-6 sm:py-8">
-        <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:p-7 print:hidden">
+        <section id="form-section" className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:p-7 print:hidden">
           <h2 className="text-lg font-semibold text-slate-800">Data Perencanaan</h2>
           <p className="text-sm text-slate-500">
             Lengkapi form berikut untuk menghasilkan RPP secara otomatis.
@@ -294,7 +366,7 @@ function Index() {
             <Field label="Materi/Topik" className="sm:col-span-2">
               <Input value={form.materi} onChange={(e) => update("materi", e.target.value)} />
             </Field>
-            <Field label="Alokasi Waktu">
+            <Field label="Alokasi JP per Pertemuan">
               <Input
                 placeholder="cth. 2 x 40 menit"
                 value={form.alokasi}
@@ -329,6 +401,25 @@ function Index() {
 
           <div className="mt-6 flex flex-wrap items-center gap-3">
             <Button
+              onClick={handleAnalyze}
+              disabled={analyzing}
+              variant="outline"
+              size="lg"
+              className="border-[#0f2b5b] text-[#0f2b5b] hover:bg-[#0f2b5b]/5"
+            >
+              {analyzing ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Menganalisis CP...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  Analisis CP
+                </>
+              )}
+            </Button>
+            <Button
               onClick={submit}
               disabled={loading}
               className="bg-[#0f2b5b] hover:bg-[#0a1f45]"
@@ -350,6 +441,103 @@ function Index() {
             )}
           </div>
         </section>
+
+        {topics && (
+          <section
+            id="cp-analysis"
+            className="mt-8 rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:p-7 print:hidden"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-800">Hasil Analisis CP</h2>
+                <p className="text-sm text-slate-500">
+                  Rekomendasi pembagian materi. Semua kolom dapat diedit. Pilih "Buat RPP" untuk menggunakan topik.
+                </p>
+              </div>
+              <Button variant="outline" size="sm" onClick={addTopic}>
+                <Plus className="mr-1.5 h-4 w-4" /> Tambah Baris
+              </Button>
+            </div>
+
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full border-collapse text-sm">
+                <thead>
+                  <tr className="bg-slate-100 text-left text-slate-700">
+                    <th className="border border-slate-200 px-2 py-2 w-10">No</th>
+                    <th className="border border-slate-200 px-2 py-2 min-w-[180px]">Materi/Topik</th>
+                    <th className="border border-slate-200 px-2 py-2 min-w-[220px]">Kompetensi/Tujuan Utama</th>
+                    <th className="border border-slate-200 px-2 py-2 w-28">Pertemuan</th>
+                    <th className="border border-slate-200 px-2 py-2 min-w-[140px]">Alokasi JP</th>
+                    <th className="border border-slate-200 px-2 py-2 w-40">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {topics.map((t, i) => (
+                    <tr key={i} className="align-top">
+                      <td className="border border-slate-200 px-2 py-2 text-center text-slate-600">
+                        {t.no}
+                      </td>
+                      <td className="border border-slate-200 px-1 py-1">
+                        <Textarea
+                          rows={2}
+                          value={t.materi}
+                          onChange={(e) => updateTopic(i, { materi: e.target.value })}
+                          className="min-h-[40px]"
+                        />
+                      </td>
+                      <td className="border border-slate-200 px-1 py-1">
+                        <Textarea
+                          rows={3}
+                          value={t.kompetensi}
+                          onChange={(e) => updateTopic(i, { kompetensi: e.target.value })}
+                          className="min-h-[40px]"
+                        />
+                      </td>
+                      <td className="border border-slate-200 px-1 py-1">
+                        <Input
+                          type="number"
+                          min={1}
+                          value={t.pertemuan}
+                          onChange={(e) =>
+                            updateTopic(i, {
+                              pertemuan: Math.max(1, parseInt(e.target.value, 10) || 1),
+                            })
+                          }
+                        />
+                      </td>
+                      <td className="border border-slate-200 px-1 py-1">
+                        <Input
+                          value={t.alokasi}
+                          onChange={(e) => updateTopic(i, { alokasi: e.target.value })}
+                        />
+                      </td>
+                      <td className="border border-slate-200 px-1 py-1">
+                        <div className="flex flex-col gap-1.5">
+                          <Button
+                            size="sm"
+                            className="bg-[#0f2b5b] hover:bg-[#0a1f45]"
+                            onClick={() => pickTopic(t)}
+                          >
+                            Buat RPP
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => removeTopic(i)}
+                            className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                          >
+                            <Trash2 className="mr-1 h-3.5 w-3.5" /> Hapus
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+
 
         {result && (
           <section id="rpp-result" className="mt-8">
