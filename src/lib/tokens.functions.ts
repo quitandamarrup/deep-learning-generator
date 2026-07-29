@@ -26,10 +26,18 @@ export const checkAccess = createServerFn({ method: "POST" })
 export const redeemToken = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
-    z.object({ token: z.string().min(1).max(64), subject: z.string().min(1) }).parse(d),
+    z
+      .object({
+        token: z.string().min(1).max(64),
+        subject: z.string().min(1),
+        level: z.string().optional().default(""),
+        classPhase: z.string().optional().default(""),
+      })
+      .parse(d),
   )
   .handler(async ({ data, context }) => {
-    const { userId } = context;
+    const { userId, claims } = context;
+    const userEmail = (claims as { email?: string } | null)?.email ?? null;
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const tokenTrim = data.token.trim();
 
@@ -43,13 +51,16 @@ export const redeemToken = createServerFn({ method: "POST" })
     if (row.status === "disabled") return { ok: false as const, reason: "Token telah dinonaktifkan." };
 
     // Not yet bound → bind to this user + subject
-    if (row.status === "active" || (!row.user_id && !row.subject)) {
+    if (row.status === "active" && !row.user_id) {
       const { error: upErr } = await supabaseAdmin
         .from("download_tokens")
         .update({
           status: "redeemed",
           user_id: userId,
+          user_email: userEmail,
           subject: data.subject,
+          level: data.level || null,
+          class_phase: data.classPhase || null,
           redeemed_at: new Date().toISOString(),
         })
         .eq("id", row.id);
