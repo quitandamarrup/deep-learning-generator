@@ -16,33 +16,42 @@ export type Database = {
     Tables: {
       download_tokens: {
         Row: {
+          class_phase: string | null
           created_at: string
           id: string
+          level: string | null
           redeemed_at: string | null
           status: Database["public"]["Enums"]["token_status"]
           subject: string | null
           token: string
           updated_at: string
+          user_email: string | null
           user_id: string | null
         }
         Insert: {
+          class_phase?: string | null
           created_at?: string
           id?: string
+          level?: string | null
           redeemed_at?: string | null
           status?: Database["public"]["Enums"]["token_status"]
           subject?: string | null
           token: string
           updated_at?: string
+          user_email?: string | null
           user_id?: string | null
         }
         Update: {
+          class_phase?: string | null
           created_at?: string
           id?: string
+          level?: string | null
           redeemed_at?: string | null
           status?: Database["public"]["Enums"]["token_status"]
           subject?: string | null
           token?: string
           updated_at?: string
+          user_email?: string | null
           user_id?: string | null
         }
         Relationships: []

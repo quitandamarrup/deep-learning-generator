@@ -1,22 +1,22 @@
-import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import {
-  adminGenerateTokens,
   adminListTokens,
-  adminDisableToken,
-  isAdmin as isAdminFn,
-} from "@/lib/tokens.functions";
+  adminCreateToken,
+  adminDisableTokenV2,
+  adminDeleteToken,
+} from "@/lib/admin-tokens.functions";
+import { adminLogout, adminMe } from "@/lib/admin-auth.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
-import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Plus, Ban, ArrowLeft, Copy } from "lucide-react";
+import { Loader2, Plus, Ban, ArrowLeft, Copy, LogOut, Trash2 } from "lucide-react";
 
 export const Route = createFileRoute("/admin/tokens")({
   head: () => ({
-    meta: [{ title: "Admin — Manajemen Token" }],
+    meta: [{ title: "Admin — Manajemen Token Download" }],
   }),
   component: AdminTokens,
 });
@@ -26,40 +26,39 @@ type TokenRow = {
   token: string;
   status: string;
   user_id: string | null;
+  user_email: string | null;
   subject: string | null;
+  level: string | null;
+  class_phase: string | null;
   redeemed_at: string | null;
   created_at: string;
 };
 
 function AdminTokens() {
   const runList = useServerFn(adminListTokens);
-  const runGen = useServerFn(adminGenerateTokens);
-  const runDisable = useServerFn(adminDisableToken);
-  const runIsAdmin = useServerFn(isAdminFn);
+  const runCreate = useServerFn(adminCreateToken);
+  const runDisable = useServerFn(adminDisableTokenV2);
+  const runDelete = useServerFn(adminDeleteToken);
+  const runLogout = useServerFn(adminLogout);
+  const runMe = useServerFn(adminMe);
+  const navigate = useNavigate();
 
   const [ready, setReady] = useState(false);
-  const [allowed, setAllowed] = useState(false);
   const [rows, setRows] = useState<TokenRow[]>([]);
-  const [count, setCount] = useState("5");
+  const [count, setCount] = useState("1");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    (async () => {
-      const { data } = await supabase.auth.getSession();
-      if (!data.session) {
+    runMe()
+      .then((r) => {
+        if (!r.isAdmin) {
+          navigate({ to: "/admin" });
+          return;
+        }
         setReady(true);
-        setAllowed(false);
-        return;
-      }
-      try {
-        const r = await runIsAdmin();
-        setAllowed(r.isAdmin);
-      } catch {
-        setAllowed(false);
-      }
-      setReady(true);
-    })();
-  }, [runIsAdmin]);
+      })
+      .catch(() => navigate({ to: "/admin" }));
+  }, [runMe, navigate]);
 
   const refresh = async () => {
     try {
@@ -72,11 +71,11 @@ function AdminTokens() {
   };
 
   useEffect(() => {
-    if (allowed) refresh();
+    if (ready) refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allowed]);
+  }, [ready]);
 
-  const generate = async () => {
+  const create = async () => {
     const n = parseInt(count, 10);
     if (!n || n < 1) {
       toast.error("Jumlah tidak valid.");
@@ -84,7 +83,7 @@ function AdminTokens() {
     }
     setBusy(true);
     try {
-      const r = await runGen({ data: { count: n } });
+      const r = await runCreate({ data: { count: n } });
       toast.success(`${r.tokens.length} token dibuat.`);
       await refresh();
     } catch (e) {
@@ -106,27 +105,33 @@ function AdminTokens() {
     }
   };
 
+  const del = async (id: string) => {
+    if (!confirm("Hapus token ini? Hanya berlaku bila belum digunakan.")) return;
+    try {
+      const r = await runDelete({ data: { id } });
+      if (r.ok) {
+        toast.success("Token dihapus.");
+        refresh();
+      } else {
+        toast.error(r.reason ?? "Gagal menghapus token.");
+      }
+    } catch {
+      toast.error("Gagal menghapus token.");
+    }
+  };
+
   const copy = (t: string) => {
     navigator.clipboard.writeText(t);
     toast.success("Token disalin.");
   };
 
+  const logout = async () => {
+    await runLogout();
+    toast.success("Anda telah keluar dari admin.");
+    navigate({ to: "/admin" });
+  };
+
   if (!ready) return <div className="p-10 text-center text-slate-500">Memuat...</div>;
-  if (!allowed) {
-    return (
-      <div className="min-h-screen bg-slate-50 p-10">
-        <div className="mx-auto max-w-md rounded-lg border bg-white p-6 text-center">
-          <h1 className="text-lg font-semibold">Akses Ditolak</h1>
-          <p className="mt-2 text-sm text-slate-500">
-            Halaman ini hanya untuk admin. Login dengan akun admin, atau hubungi pengelola.
-          </p>
-          <Link to="/" className="mt-4 inline-block text-sm text-[#0f2b5b] underline">
-            Kembali ke beranda
-          </Link>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -135,10 +140,18 @@ function AdminTokens() {
         <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-5">
           <Link to="/">
             <Button size="sm" variant="secondary" className="bg-white/10 text-white hover:bg-white/20 border-0">
-              <ArrowLeft className="mr-1.5 h-4 w-4" /> Kembali
+              <ArrowLeft className="mr-1.5 h-4 w-4" /> Beranda
             </Button>
           </Link>
-          <h1 className="text-lg font-bold sm:text-xl">Manajemen Token Download</h1>
+          <h1 className="text-lg font-bold sm:text-xl flex-1">Manajemen Token Download</h1>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={logout}
+            className="bg-white/10 text-white hover:bg-white/20 border-0"
+          >
+            <LogOut className="mr-1.5 h-4 w-4" /> Logout
+          </Button>
         </div>
       </header>
 
@@ -154,11 +167,13 @@ function AdminTokens() {
               onChange={(e) => setCount(e.target.value)}
               className="w-32"
             />
-            <Button onClick={generate} disabled={busy} className="bg-[#0f2b5b] hover:bg-[#0a1f45]">
+            <Button onClick={create} disabled={busy} className="bg-[#0f2b5b] hover:bg-[#0a1f45]">
               {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
-              Generate
+              Buat Token
             </Button>
-            <span className="text-xs text-slate-500">Max 200 per batch. Token acak kriptografis.</span>
+            <span className="text-xs text-slate-500">
+              Format ADM-XXXX-XXXX, acak kriptografis. Maks 200 per batch.
+            </span>
           </div>
         </section>
 
@@ -173,17 +188,19 @@ function AdminTokens() {
                 <tr className="bg-slate-100 text-left">
                   <th className="border px-2 py-1.5">Token</th>
                   <th className="border px-2 py-1.5">Status</th>
-                  <th className="border px-2 py-1.5">Mapel Terikat</th>
                   <th className="border px-2 py-1.5">User</th>
-                  <th className="border px-2 py-1.5">Redeemed</th>
+                  <th className="border px-2 py-1.5">Mata Pelajaran</th>
+                  <th className="border px-2 py-1.5">Jenjang</th>
+                  <th className="border px-2 py-1.5">Kelas/Fase</th>
                   <th className="border px-2 py-1.5">Dibuat</th>
+                  <th className="border px-2 py-1.5">Digunakan</th>
                   <th className="border px-2 py-1.5">Aksi</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="border px-2 py-6 text-center text-slate-500">
+                    <td colSpan={9} className="border px-2 py-6 text-center text-slate-500">
                       Belum ada token.
                     </td>
                   </tr>
@@ -211,27 +228,41 @@ function AdminTokens() {
                         {r.status}
                       </span>
                     </td>
+                    <td className="border px-2 py-1.5 text-xs">
+                      {r.user_email ?? (r.user_id ? r.user_id.slice(0, 8) + "…" : "-")}
+                    </td>
                     <td className="border px-2 py-1.5">{r.subject ?? "-"}</td>
-                    <td className="border px-2 py-1.5 font-mono text-xs">
-                      {r.user_id ? r.user_id.slice(0, 8) + "…" : "-"}
+                    <td className="border px-2 py-1.5">{r.level ?? "-"}</td>
+                    <td className="border px-2 py-1.5">{r.class_phase ?? "-"}</td>
+                    <td className="border px-2 py-1.5 text-xs">
+                      {new Date(r.created_at).toLocaleString("id-ID")}
                     </td>
                     <td className="border px-2 py-1.5 text-xs">
                       {r.redeemed_at ? new Date(r.redeemed_at).toLocaleString("id-ID") : "-"}
                     </td>
-                    <td className="border px-2 py-1.5 text-xs">
-                      {new Date(r.created_at).toLocaleString("id-ID")}
-                    </td>
                     <td className="border px-2 py-1.5">
-                      {r.status !== "disabled" && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => disable(r.id)}
-                          className="text-red-600 hover:bg-red-50 hover:text-red-700"
-                        >
-                          <Ban className="mr-1 h-3.5 w-3.5" /> Disable
-                        </Button>
-                      )}
+                      <div className="flex flex-wrap gap-1">
+                        {r.status !== "disabled" && r.status !== "redeemed" && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => disable(r.id)}
+                            className="text-amber-600 hover:bg-amber-50 hover:text-amber-700"
+                          >
+                            <Ban className="mr-1 h-3.5 w-3.5" /> Disable
+                          </Button>
+                        )}
+                        {!r.user_id && !r.redeemed_at && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => del(r.id)}
+                            className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                          >
+                            <Trash2 className="mr-1 h-3.5 w-3.5" /> Hapus
+                          </Button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

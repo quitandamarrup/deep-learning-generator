@@ -377,7 +377,12 @@ function Index() {
     setVerifying(true);
     try {
       const res = await runRedeem({
-        data: { token: tokenValue.trim(), subject: form.mapel },
+        data: {
+          token: tokenValue.trim(),
+          subject: form.mapel,
+          level: form.jenjang,
+          classPhase: `${form.kelas}/${form.fase}`,
+        },
       });
       if (res.ok) {
         toast.success("Token berhasil digunakan. Anda dapat mengunduh seluruh dokumen mapel ini.");
@@ -397,9 +402,15 @@ function Index() {
 
   const waLink = useMemo(() => {
     const t = selectedTopicNo ? topics?.find((x) => x.no === selectedTopicNo) : undefined;
-    const msg = `Halo Admin, saya ingin meminta token download Administrasi Pembelajaran.\n\nNama: ${form.penyusun || "-"}\nMata Pelajaran: ${form.mapel || "-"}\nJenjang: ${form.jenjang || "-"}\nKelas/Fase: ${form.kelas || "-"}/${form.fase || "-"}${t ? `\nTopik: ${t.materi}` : ""}`;
+    const nama =
+      form.penyusun ||
+      (user?.user_metadata?.full_name as string | undefined) ||
+      (user?.user_metadata?.name as string | undefined) ||
+      "-";
+    const email = user?.email || "-";
+    const msg = `Halo Admin, saya ingin meminta token download Administrasi Pembelajaran.\n\nNama: ${nama}\nEmail: ${email}\nMata Pelajaran: ${form.mapel || "-"}\nJenjang: ${form.jenjang || "-"}\nKelas/Fase: ${form.kelas || "-"}/${form.fase || "-"}${t ? `\nTopik: ${t.materi}` : ""}`;
     return `https://wa.me/6289502690216?text=${encodeURIComponent(msg)}`;
-  }, [form, selectedTopicNo, topics]);
+  }, [form, selectedTopicNo, topics, user]);
 
   const filenameFor = (d: DocType) =>
     `${d}-${(form.mapel || "output").replace(/\s+/g, "_")}-${(form.kelas || "").replace(/\s+/g, "_")}`;
