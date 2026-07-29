@@ -377,7 +377,12 @@ function Index() {
     setVerifying(true);
     try {
       const res = await runRedeem({
-        data: { token: tokenValue.trim(), subject: form.mapel },
+        data: {
+          token: tokenValue.trim(),
+          subject: form.mapel,
+          level: form.jenjang,
+          classPhase: `${form.kelas}/${form.fase}`,
+        },
       });
       if (res.ok) {
         toast.success("Token berhasil digunakan. Anda dapat mengunduh seluruh dokumen mapel ini.");
