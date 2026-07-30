@@ -28,6 +28,7 @@ type TokenRow = {
   user_id: string | null;
   user_email: string | null;
   subject: string | null;
+  semester: string | null;
   level: string | null;
   class_phase: string | null;
   redeemed_at: string | null;
@@ -190,6 +191,7 @@ function AdminTokens() {
                   <th className="border px-2 py-1.5">Status</th>
                   <th className="border px-2 py-1.5">User</th>
                   <th className="border px-2 py-1.5">Mata Pelajaran</th>
+                  <th className="border px-2 py-1.5">Semester</th>
                   <th className="border px-2 py-1.5">Jenjang</th>
                   <th className="border px-2 py-1.5">Kelas/Fase</th>
                   <th className="border px-2 py-1.5">Dibuat</th>
@@ -232,6 +234,7 @@ function AdminTokens() {
                       {r.user_email ?? (r.user_id ? r.user_id.slice(0, 8) + "…" : "-")}
                     </td>
                     <td className="border px-2 py-1.5">{r.subject ?? "-"}</td>
+                    <td className="border px-2 py-1.5">{r.semester ?? "-"}</td>
                     <td className="border px-2 py-1.5">{r.level ?? "-"}</td>
                     <td className="border px-2 py-1.5">{r.class_phase ?? "-"}</td>
                     <td className="border px-2 py-1.5 text-xs">

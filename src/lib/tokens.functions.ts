@@ -6,23 +6,29 @@ function norm(s: string) {
   return s.trim().toLowerCase();
 }
 
-// Check if the current user already has access for a given subject.
+// Check if the current user already has access for a given subject + semester.
 export const checkAccess = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ subject: z.string().min(1) }).parse(d))
+  .inputValidator((d: unknown) =>
+    z.object({ subject: z.string().min(1), semester: z.string().min(1) }).parse(d),
+  )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     const { data: rows, error } = await supabase
       .from("download_tokens")
-      .select("id, subject, status")
+      .select("id, subject, semester, status")
       .eq("user_id", userId)
       .eq("status", "redeemed");
     if (error) throw new Error(error.message);
-    const has = (rows ?? []).some((r) => norm(r.subject ?? "") === norm(data.subject));
+    const has = (rows ?? []).some(
+      (r) =>
+        norm(r.subject ?? "") === norm(data.subject) &&
+        norm(r.semester ?? "") === norm(data.semester),
+    );
     return { hasAccess: has };
   });
 
-// Redeem token for user+subject. Binds if unbound; verifies if already bound.
+// Redeem token for user+subject+semester. Binds if unbound; verifies if already bound.
 export const redeemToken = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
@@ -30,6 +36,7 @@ export const redeemToken = createServerFn({ method: "POST" })
       .object({
         token: z.string().min(1).max(64),
         subject: z.string().min(1),
+        semester: z.string().min(1),
         level: z.string().optional().default(""),
         classPhase: z.string().optional().default(""),
       })
@@ -50,7 +57,7 @@ export const redeemToken = createServerFn({ method: "POST" })
     if (!row) return { ok: false as const, reason: "Token tidak ditemukan." };
     if (row.status === "disabled") return { ok: false as const, reason: "Token telah dinonaktifkan." };
 
-    // Not yet bound → bind to this user + subject
+    // Not yet bound → bind to this user + subject + semester
     if (row.status === "active" && !row.user_id) {
       const { error: upErr } = await supabaseAdmin
         .from("download_tokens")
@@ -59,16 +66,17 @@ export const redeemToken = createServerFn({ method: "POST" })
           user_id: userId,
           user_email: userEmail,
           subject: data.subject,
+          semester: data.semester,
           level: data.level || null,
           class_phase: data.classPhase || null,
           redeemed_at: new Date().toISOString(),
         })
         .eq("id", row.id);
       if (upErr) throw new Error(upErr.message);
-      return { ok: true as const, boundSubject: data.subject };
+      return { ok: true as const, boundSubject: data.subject, boundSemester: data.semester };
     }
 
-    // Already redeemed → must match user + subject
+    // Already redeemed → must match user + subject + semester
     if (row.user_id !== userId) {
       return { ok: false as const, reason: "Token ini sudah terikat pada pengguna lain." };
     }
@@ -79,8 +87,20 @@ export const redeemToken = createServerFn({ method: "POST" })
         boundSubject: row.subject ?? "",
       };
     }
-    return { ok: true as const, boundSubject: row.subject ?? data.subject };
+    if (norm(row.semester ?? "") !== norm(data.semester)) {
+      return {
+        ok: false as const,
+        reason: `Token ini hanya berlaku untuk Semester ${row.semester}. Silakan gunakan token baru untuk semester lainnya.`,
+        boundSubject: row.subject ?? "",
+      };
+    }
+    return {
+      ok: true as const,
+      boundSubject: row.subject ?? data.subject,
+      boundSemester: row.semester ?? data.semester,
+    };
   });
+
 
 // Admin: list tokens
 export const adminListTokens = createServerFn({ method: "POST" })

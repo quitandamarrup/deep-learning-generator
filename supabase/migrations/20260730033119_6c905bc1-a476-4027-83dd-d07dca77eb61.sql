@@ -1,0 +1,1 @@
+ALTER TABLE public.download_tokens ADD COLUMN IF NOT EXISTS semester text;
