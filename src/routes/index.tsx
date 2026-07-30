@@ -798,8 +798,8 @@ function Index() {
               <div>
                 <h2 className="text-lg font-semibold text-slate-800">Preview Dokumen</h2>
                 <p className="text-sm text-slate-500">
-                  Preview gratis. Unduhan membutuhkan token
-                  {hasAccess ? " — token aktif untuk mapel ini." : "."}
+                  Preview gratis. Unduhan membutuhkan paket aktif
+                  {hasAccess ? " — paket aktif untuk mapel & semester ini." : "."}
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
