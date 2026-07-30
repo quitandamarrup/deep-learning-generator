@@ -1,21 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireAdminSession } from "./admin-auth.functions";
-
-function randomChunk(len: number) {
-  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  const bytes = new Uint8Array(len);
-  crypto.getRandomValues(bytes);
-  let out = "";
-  for (let i = 0; i < len; i++) out += alphabet[bytes[i] % alphabet.length];
-  return out;
-}
-
-function makeToken() {
-  return `ADM-${randomChunk(4)}-${randomChunk(4)}`;
-}
 
 export const adminListTokens = createServerFn({ method: "GET" }).handler(async () => {
+  const { requireAdminSession } = await import("./admin-auth.server");
   await requireAdminSession();
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data, error } = await supabaseAdmin
@@ -34,6 +21,8 @@ export const adminCreateToken = createServerFn({ method: "POST" })
     z.object({ count: z.number().int().min(1).max(200).default(1) }).parse(d ?? {}),
   )
   .handler(async ({ data }) => {
+    const { requireAdminSession } = await import("./admin-auth.server");
+    const { makeToken } = await import("./admin-tokens.server");
     await requireAdminSession();
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const rows = Array.from({ length: data.count }, () => ({ token: makeToken() }));
@@ -48,6 +37,7 @@ export const adminCreateToken = createServerFn({ method: "POST" })
 export const adminDisableTokenV2 = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data }) => {
+    const { requireAdminSession } = await import("./admin-auth.server");
     await requireAdminSession();
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error } = await supabaseAdmin
@@ -61,9 +51,9 @@ export const adminDisableTokenV2 = createServerFn({ method: "POST" })
 export const adminDeleteToken = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data }) => {
+    const { requireAdminSession } = await import("./admin-auth.server");
     await requireAdminSession();
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    // Only delete when not yet used
     const { data: row, error: rErr } = await supabaseAdmin
       .from("download_tokens")
       .select("id, user_id, redeemed_at")
