@@ -190,6 +190,7 @@ function AdminTokens() {
                   <th className="border px-2 py-1.5">Status</th>
                   <th className="border px-2 py-1.5">User</th>
                   <th className="border px-2 py-1.5">Mata Pelajaran</th>
+                  <th className="border px-2 py-1.5">Semester</th>
                   <th className="border px-2 py-1.5">Jenjang</th>
                   <th className="border px-2 py-1.5">Kelas/Fase</th>
                   <th className="border px-2 py-1.5">Dibuat</th>
