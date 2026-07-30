@@ -21,6 +21,7 @@ export type Database = {
           id: string
           level: string | null
           redeemed_at: string | null
+          semester: string | null
           status: Database["public"]["Enums"]["token_status"]
           subject: string | null
           token: string
@@ -34,6 +35,7 @@ export type Database = {
           id?: string
           level?: string | null
           redeemed_at?: string | null
+          semester?: string | null
           status?: Database["public"]["Enums"]["token_status"]
           subject?: string | null
           token: string
@@ -47,6 +49,7 @@ export type Database = {
           id?: string
           level?: string | null
           redeemed_at?: string | null
+          semester?: string | null
           status?: Database["public"]["Enums"]["token_status"]
           subject?: string | null
           token?: string
