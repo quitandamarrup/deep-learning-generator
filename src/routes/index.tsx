@@ -852,45 +852,127 @@ function Index() {
         </footer>
       </main>
 
-      {/* Token modal */}
+      {/* Paket / token modal */}
       <Dialog open={tokenOpen} onOpenChange={setTokenOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Key className="h-5 w-5" /> Masukkan Token Download
+              <Key className="h-5 w-5" /> Aktifkan Paket Administrasi
             </DialogTitle>
             <DialogDescription>
-              Token ini akan terikat pada akun Anda + mata pelajaran{" "}
-              <b>{form.mapel || "-"}</b>. Setelah aktif, seluruh dokumen mapel ini dapat diunduh.
+              Rp49.000 / Mata Pelajaran / Semester. Bayar sekali untuk mengakses dan mendownload
+              seluruh Administrasi Pembelajaran mapel ini selama semester yang dipilih.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3">
-            <Input
-              placeholder="Contoh: A3F7K9M2P4Q8"
-              value={tokenValue}
-              onChange={(e) => setTokenValue(e.target.value.toUpperCase())}
-              autoFocus
-            />
-            <a
-              href={waLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 text-sm text-green-700 hover:underline"
-            >
-              <MessageCircle className="h-4 w-4" /> Belum punya token? Minta via WhatsApp
-            </a>
+
+          <div className="space-y-4">
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
+              <div className="text-2xl font-bold text-[#0f2b5b]">Rp49.000</div>
+              <div className="mt-1 text-slate-600">
+                Mata Pelajaran: <b>{form.mapel || "-"}</b>
+              </div>
+              <div className="text-slate-600">
+                Semester: <b>{form.semester || "-"}</b>
+              </div>
+            </div>
+
+            <div>
+              <div className="mb-2 text-sm font-semibold text-slate-800">Metode Pembayaran</div>
+              <div className="flex flex-wrap gap-2">
+                {(["Transfer Superbank", "GoPay", "DANA"] as const).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setPayMethod(m)}
+                    className={`rounded-md border px-3 py-1.5 text-xs font-medium transition ${
+                      payMethod === m
+                        ? "border-[#0f2b5b] bg-[#0f2b5b] text-white"
+                        : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    {m}
+                  </button>
+                ))}
+              </div>
+
+              <div className="mt-3 rounded-lg border border-slate-200 p-3">
+                {payMethod === "Transfer Superbank" && (
+                  <div className="space-y-2 text-sm">
+                    <div className="text-slate-600">Transfer Superbank — Nomor Rekening:</div>
+                    <div className="font-mono text-lg font-bold tracking-wider text-slate-900">
+                      000083324947
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        navigator.clipboard.writeText("000083324947");
+                        toast.success("Nomor rekening disalin.");
+                      }}
+                    >
+                      Salin Nomor Rekening
+                    </Button>
+                  </div>
+                )}
+                {payMethod !== "Transfer Superbank" && (
+                  <div className="flex flex-col items-center gap-2 text-sm">
+                    <div className="text-slate-600">
+                      Pindai QR {payMethod} berikut, lalu bayar Rp49.000.
+                    </div>
+                    <img
+                      src={payMethod === "GoPay" ? "/qr-gopay.png" : "/qr-dana.png"}
+                      alt={`QR ${payMethod}`}
+                      className="w-64 max-w-full rounded-md border border-slate-200 bg-white p-2"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).style.display = "none";
+                        const n = e.currentTarget.nextElementSibling as HTMLElement | null;
+                        if (n) n.style.display = "block";
+                      }}
+                    />
+                    <div className="hidden text-xs text-red-600">
+                      Gambar QR {payMethod} belum tersedia. Unggah file{" "}
+                      <b>{payMethod === "GoPay" ? "public/qr-gopay.png" : "public/qr-dana.png"}</b>.
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-slate-700">
+              Setelah melakukan pembayaran Rp49.000, kirim bukti pembayaran melalui WhatsApp untuk
+              mendapatkan token aktivasi.
+              <a
+                href={waLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:bg-green-700"
+              >
+                <MessageCircle className="h-4 w-4" /> Saya Sudah Bayar – Minta Token
+              </a>
+            </div>
+
+            <div className="space-y-2 border-t border-slate-200 pt-3">
+              <div className="text-sm font-semibold text-slate-800">Sudah punya token?</div>
+              <Input
+                placeholder="Contoh: ADM-XXXX-XXXX"
+                value={tokenValue}
+                onChange={(e) => setTokenValue(e.target.value.toUpperCase())}
+              />
+            </div>
           </div>
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setTokenOpen(false)}>
               Batal
             </Button>
             <Button onClick={handleVerifyToken} disabled={verifying} className="bg-[#0f2b5b] hover:bg-[#0a1f45]">
               {verifying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Verifikasi Token
+              Aktifkan Token
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
     </div>
   );
 }
