@@ -8,7 +8,7 @@ export const adminListTokens = createServerFn({ method: "GET" }).handler(async (
   const { data, error } = await supabaseAdmin
     .from("download_tokens")
     .select(
-      "id, token, status, user_id, user_email, subject, level, class_phase, redeemed_at, created_at",
+      "id, token, status, user_id, user_email, subject, semester, level, class_phase, redeemed_at, created_at",
     )
     .order("created_at", { ascending: false })
     .limit(1000);
