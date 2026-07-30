@@ -134,6 +134,9 @@ function Index() {
   const [tokenOpen, setTokenOpen] = useState(false);
   const [tokenValue, setTokenValue] = useState("");
   const [verifying, setVerifying] = useState(false);
+  const [payMethod, setPayMethod] = useState<"Transfer Superbank" | "GoPay" | "DANA">(
+    "Transfer Superbank",
+  );
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setUser(data.session?.user ?? null));
@@ -154,14 +157,14 @@ function Index() {
   }, [user, runIsAdmin]);
 
   useEffect(() => {
-    if (!user || !form.mapel.trim()) {
+    if (!user || !form.mapel.trim() || !form.semester.trim()) {
       setHasAccess(false);
       return;
     }
-    runCheckAccess({ data: { subject: form.mapel } })
+    runCheckAccess({ data: { subject: form.mapel, semester: form.semester } })
       .then((r) => setHasAccess(r.hasAccess))
       .catch(() => setHasAccess(false));
-  }, [user, form.mapel, runCheckAccess]);
+  }, [user, form.mapel, form.semester, runCheckAccess]);
 
   const handleSignIn = async () => {
     setAuthLoading(true);
@@ -360,8 +363,8 @@ function Index() {
       toast.error("Silakan masuk dengan Google terlebih dahulu.");
       return false;
     }
-    if (!form.mapel.trim()) {
-      toast.error("Isi Mata Pelajaran terlebih dahulu.");
+    if (!form.mapel.trim() || !form.semester.trim()) {
+      toast.error("Isi Mata Pelajaran dan Semester terlebih dahulu.");
       return false;
     }
     if (hasAccess) return true;
@@ -380,12 +383,15 @@ function Index() {
         data: {
           token: tokenValue.trim(),
           subject: form.mapel,
+          semester: form.semester,
           level: form.jenjang,
           classPhase: `${form.kelas}/${form.fase}`,
         },
       });
       if (res.ok) {
-        toast.success("Token berhasil digunakan. Anda dapat mengunduh seluruh dokumen mapel ini.");
+        toast.success(
+          `Paket berhasil diaktifkan. ${form.mapel} – Semester ${form.semester}. Anda sekarang dapat mengakses seluruh Administrasi Pembelajaran dalam paket ini.`,
+        );
         setHasAccess(true);
         setTokenOpen(false);
         setTokenValue("");
@@ -408,9 +414,9 @@ function Index() {
       (user?.user_metadata?.name as string | undefined) ||
       "-";
     const email = user?.email || "-";
-    const msg = `Halo Admin, saya ingin meminta token download Administrasi Pembelajaran.\n\nNama: ${nama}\nEmail: ${email}\nMata Pelajaran: ${form.mapel || "-"}\nJenjang: ${form.jenjang || "-"}\nKelas/Fase: ${form.kelas || "-"}/${form.fase || "-"}${t ? `\nTopik: ${t.materi}` : ""}`;
+    const msg = `Halo Admin, saya sudah melakukan pembayaran Paket Administrasi Pembelajaran sebesar Rp49.000.\n\nNama: ${nama}\nEmail: ${email}\nMata Pelajaran: ${form.mapel || "-"}\nSemester: ${form.semester || "-"}\nJenjang: ${form.jenjang || "-"}\nKelas/Fase: ${form.kelas || "-"}/${form.fase || "-"}\n\nMetode Pembayaran: ${payMethod || "-"}${t ? `\nTopik: ${t.materi}` : ""}\n\nMohon token aktivasi. Saya akan mengirimkan bukti pembayaran.`;
     return `https://wa.me/6289502690216?text=${encodeURIComponent(msg)}`;
-  }, [form, selectedTopicNo, topics, user]);
+  }, [form, selectedTopicNo, topics, user, payMethod]);
 
   const filenameFor = (d: DocType) =>
     `${d}-${(form.mapel || "output").replace(/\s+/g, "_")}-${(form.kelas || "").replace(/\s+/g, "_")}`;
