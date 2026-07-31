@@ -3,7 +3,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { analyzeCP, type CpTopic } from "@/lib/cp-analysis.functions";
+import { analyzeCP, type CpTopic, type MasterData } from "@/lib/cp-analysis.functions";
+import { buildDocFromMaster, syncMaster } from "@/lib/doc-builders";
 import {
   DOC_LABELS,
   DOC_TYPES,
@@ -122,6 +123,7 @@ function Index() {
 
   const [analyzing, setAnalyzing] = useState(false);
   const [topics, setTopics] = useState<CpTopic[] | null>(null);
+  const [master, setMaster] = useState<MasterData | null>(null);
   const [selectedTopicNo, setSelectedTopicNo] = useState<number | null>(null);
 
   const [selectedDocs, setSelectedDocs] = useState<Set<DocType>>(new Set(["RPP"]));
@@ -184,6 +186,7 @@ function Index() {
     await supabase.auth.signOut();
     setDocs({});
     setTopics(null);
+    setMaster(null);
     setSelectedTopicNo(null);
     toast.success("Anda telah keluar.");
   };
@@ -256,6 +259,7 @@ function Index() {
         },
       });
       setTopics(res.topics);
+      setMaster(res.master);
       setSelectedTopicNo(res.topics[0]?.no ?? null);
       setDocs({}); // invalidate old docs
       setActiveTab(null);
@@ -300,7 +304,13 @@ function Index() {
     });
   };
 
+  // AI hanya dipanggil saat Analisis CP. Dokumen dibentuk lokal dari Master Data.
   const generateOne = async (docType: DocType, ctx: DocContextType) => {
+    if (master && topics) {
+      const markdown = buildDocFromMaster(docType, syncMaster(master, topics), ctx);
+      setDocs((prev) => ({ ...prev, [docType]: markdown }));
+      return markdown;
+    }
     const res = await runGenerate({ data: { docType, context: ctx } });
     setDocs((prev) => ({ ...prev, [docType]: res.markdown }));
     return res.markdown;

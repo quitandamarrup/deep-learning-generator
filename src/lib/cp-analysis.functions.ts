@@ -23,13 +23,228 @@ export type CpTopic = {
   alokasi: string;
 };
 
+/** Master Data Administrasi — hasil SATU kali panggilan AI, dipakai semua dokumen. */
+export type MasterActivity = {
+  guru: string;
+  siswa: string;
+  media: string;
+  alokasi: string;
+};
+
+export type MasterTopic = CpTopic & {
+  tp: { kode: string; rumusan: string; indikator: string; kktp: string; level: string }[];
+  pemahamanBermakna: string;
+  pertanyaanPemantik: string[];
+  model: string;
+  alasanModel: string;
+  sintaks: string[];
+  metode: string;
+  lintasDisiplin: string;
+  dimensiProfil: { dimensi: string; penerapan: string }[];
+  materiFaktual: string;
+  materiKonseptual: string;
+  materiProsedural: string;
+  materiMetakognitif: string;
+  pengetahuanAwal: string;
+  minatBelajar: string;
+  kebutuhanBelajar: string;
+  kemitraan: string;
+  lingkungan: string;
+  digital: string;
+  uraianMateri: { judul: string; isi: string }[];
+  petaKonsep: string[];
+  rangkuman: string;
+  pertemuanRinci: {
+    pertemuan: number;
+    awal: string[];
+    memahami: MasterActivity[];
+    mengaplikasi: MasterActivity[];
+    merefleksi: MasterActivity[];
+    penutup: string[];
+  }[];
+  lkpd: { alatBahan: string[]; langkah: string[]; pertanyaan: string[] };
+  asesmen: {
+    diagnostik: { soal: string; kunci: string }[];
+    formatif: { aspek: string; indikator: string; teknik: string; instrumen: string }[];
+    sumatif: { soal: string; kunci: string; skor: number }[];
+  };
+  kisi: {
+    kodeTp: string;
+    indikator: string;
+    materi: string;
+    level: string;
+    bentuk: string;
+    nomor: string;
+    bobot: string;
+  }[];
+  soal: {
+    pg: { no: number; soal: string; opsi: string[]; kunci: string }[];
+    uraian: { no: number; soal: string; kunci: string; skor: number }[];
+  };
+  rubrik: {
+    jenis: string;
+    aspek: string;
+    sangatBaik: string;
+    baik: string;
+    cukup: string;
+    perluBimbingan: string;
+  }[];
+  remedial: string;
+  pengayaan: string;
+  refleksiGuru: string[];
+  refleksiSiswa: string[];
+  glosarium: { istilah: string; arti: string }[];
+  daftarPustaka: string[];
+};
+
+export type MasterData = {
+  jenjang: string;
+  kelas: string;
+  fase: string;
+  mapel: string;
+  semester: string;
+  cp: string;
+  alokasiPerPertemuan: string;
+  topics: MasterTopic[];
+};
+
 function extractJson(text: string): string {
   const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
   if (fence) return fence[1].trim();
+  const startObj = text.indexOf("{");
+  const endObj = text.lastIndexOf("}");
+  if (startObj !== -1 && endObj !== -1) return text.slice(startObj, endObj + 1);
   const start = text.indexOf("[");
   const end = text.lastIndexOf("]");
   if (start !== -1 && end !== -1) return text.slice(start, end + 1);
   return text.trim();
+}
+
+const S = (v: unknown, fb = "") => (v === undefined || v === null ? fb : String(v));
+const A = <T,>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : []);
+
+function normalizeTopic(raw: any, i: number, alokasiPerPertemuan: string): MasterTopic {
+  const pertemuan = Math.max(1, parseInt(S(raw?.pertemuan, "1"), 10) || 1);
+  const no = i + 1;
+  const materi = S(raw?.materi);
+  const tp = A<any>(raw?.tp).map((t, j) => ({
+    kode: S(t?.kode, `TP.${no}.${j + 1}`),
+    rumusan: S(t?.rumusan),
+    indikator: S(t?.indikator),
+    kktp: S(t?.kktp),
+    level: S(t?.level, "C3"),
+  }));
+  return {
+    no,
+    materi,
+    kompetensi: S(raw?.kompetensi),
+    pertemuan,
+    alokasi: S(raw?.alokasi, `${pertemuan} x (${alokasiPerPertemuan})`),
+    tp: tp.length ? tp : [{ kode: `TP.${no}.1`, rumusan: S(raw?.kompetensi), indikator: "", kktp: "", level: "C3" }],
+    pemahamanBermakna: S(raw?.pemahamanBermakna),
+    pertanyaanPemantik: A<string>(raw?.pertanyaanPemantik).map((x) => S(x)),
+    model: S(raw?.model, "Problem Based Learning"),
+    alasanModel: S(raw?.alasanModel),
+    sintaks: A<string>(raw?.sintaks).map((x) => S(x)),
+    metode: S(raw?.metode),
+    lintasDisiplin: S(raw?.lintasDisiplin),
+    dimensiProfil: A<any>(raw?.dimensiProfil).map((d) => ({
+      dimensi: S(d?.dimensi),
+      penerapan: S(d?.penerapan),
+    })),
+    materiFaktual: S(raw?.materiFaktual),
+    materiKonseptual: S(raw?.materiKonseptual),
+    materiProsedural: S(raw?.materiProsedural),
+    materiMetakognitif: S(raw?.materiMetakognitif),
+    pengetahuanAwal: S(raw?.pengetahuanAwal),
+    minatBelajar: S(raw?.minatBelajar),
+    kebutuhanBelajar: S(raw?.kebutuhanBelajar),
+    kemitraan: S(raw?.kemitraan),
+    lingkungan: S(raw?.lingkungan),
+    digital: S(raw?.digital),
+    uraianMateri: A<any>(raw?.uraianMateri).map((u) => ({ judul: S(u?.judul), isi: S(u?.isi) })),
+    petaKonsep: A<string>(raw?.petaKonsep).map((x) => S(x)),
+    rangkuman: S(raw?.rangkuman),
+    pertemuanRinci: A<any>(raw?.pertemuanRinci).map((p, k) => ({
+      pertemuan: Math.max(1, parseInt(S(p?.pertemuan, String(k + 1)), 10) || k + 1),
+      awal: A<string>(p?.awal).map((x) => S(x)),
+      memahami: A<any>(p?.memahami).map((a) => ({
+        guru: S(a?.guru),
+        siswa: S(a?.siswa),
+        media: S(a?.media),
+        alokasi: S(a?.alokasi),
+      })),
+      mengaplikasi: A<any>(p?.mengaplikasi).map((a) => ({
+        guru: S(a?.guru),
+        siswa: S(a?.siswa),
+        media: S(a?.media),
+        alokasi: S(a?.alokasi),
+      })),
+      merefleksi: A<any>(p?.merefleksi).map((a) => ({
+        guru: S(a?.guru),
+        siswa: S(a?.siswa),
+        media: S(a?.media),
+        alokasi: S(a?.alokasi),
+      })),
+      penutup: A<string>(p?.penutup).map((x) => S(x)),
+    })),
+    lkpd: {
+      alatBahan: A<string>(raw?.lkpd?.alatBahan).map((x) => S(x)),
+      langkah: A<string>(raw?.lkpd?.langkah).map((x) => S(x)),
+      pertanyaan: A<string>(raw?.lkpd?.pertanyaan).map((x) => S(x)),
+    },
+    asesmen: {
+      diagnostik: A<any>(raw?.asesmen?.diagnostik).map((d) => ({ soal: S(d?.soal), kunci: S(d?.kunci) })),
+      formatif: A<any>(raw?.asesmen?.formatif).map((d) => ({
+        aspek: S(d?.aspek),
+        indikator: S(d?.indikator),
+        teknik: S(d?.teknik),
+        instrumen: S(d?.instrumen),
+      })),
+      sumatif: A<any>(raw?.asesmen?.sumatif).map((d) => ({
+        soal: S(d?.soal),
+        kunci: S(d?.kunci),
+        skor: Number(d?.skor) || 10,
+      })),
+    },
+    kisi: A<any>(raw?.kisi).map((k, j) => ({
+      kodeTp: S(k?.kodeTp, `TP.${no}.1`),
+      indikator: S(k?.indikator),
+      materi: S(k?.materi, materi),
+      level: S(k?.level, "C3"),
+      bentuk: S(k?.bentuk, "Pilihan Ganda"),
+      nomor: S(k?.nomor, String(j + 1)),
+      bobot: S(k?.bobot, "1"),
+    })),
+    soal: {
+      pg: A<any>(raw?.soal?.pg).map((p, j) => ({
+        no: Number(p?.no) || j + 1,
+        soal: S(p?.soal),
+        opsi: A<string>(p?.opsi).map((x) => S(x)),
+        kunci: S(p?.kunci),
+      })),
+      uraian: A<any>(raw?.soal?.uraian).map((p, j) => ({
+        no: Number(p?.no) || j + 1,
+        soal: S(p?.soal),
+        kunci: S(p?.kunci),
+        skor: Number(p?.skor) || 10,
+      })),
+    },
+    rubrik: A<any>(raw?.rubrik).map((r) => ({
+      jenis: S(r?.jenis, "Pengetahuan"),
+      aspek: S(r?.aspek),
+      sangatBaik: S(r?.sangatBaik),
+      baik: S(r?.baik),
+      cukup: S(r?.cukup),
+      perluBimbingan: S(r?.perluBimbingan),
+    })),
+    remedial: S(raw?.remedial),
+    pengayaan: S(raw?.pengayaan),
+    refleksiGuru: A<string>(raw?.refleksiGuru).map((x) => S(x)),
+    refleksiSiswa: A<string>(raw?.refleksiSiswa).map((x) => S(x)),
+    glosarium: A<any>(raw?.glosarium).map((g) => ({ istilah: S(g?.istilah), arti: S(g?.arti) })),
+    daftarPustaka: A<string>(raw?.daftarPustaka).map((x) => S(x)),
+  };
 }
 
 export const analyzeCP = createServerFn({ method: "POST" })
@@ -39,12 +254,13 @@ export const analyzeCP = createServerFn({ method: "POST" })
     if (!key) throw new Error("Missing LOVABLE_API_KEY");
     const gateway = createLovableAiGatewayProvider(key);
 
-    const system = `Anda adalah ahli kurikulum Indonesia. Tugas Anda menganalisis Capaian Pembelajaran (CP) dan membaginya menjadi beberapa materi/topik pembelajaran yang logis dan terurut.
-Pertimbangkan: (1) keluasan materi, (2) kompleksitas kompetensi, (3) tingkat kelas/fase, (4) alokasi waktu, (5) urutan pembelajaran yang logis, (6) ketercapaian CP.
-Jumlah pertemuan HARUS proporsional dengan keluasan & kompleksitas materi — bukan angka acak.
-Keluarkan HANYA JSON array valid, tanpa penjelasan, tanpa markdown fence.`;
+    const system = `Anda adalah ahli kurikulum Indonesia (Kurikulum Merdeka / Pembelajaran Mendalam).
+Tugas Anda: SEKALI JALAN menganalisis Capaian Pembelajaran (CP) dan menghasilkan MASTER DATA ADMINISTRASI yang lengkap dan konsisten.
+Master data ini akan dipakai untuk menyusun TP, ATP, PROTA, PROSEM, KKTP, Modul Ajar, RPP, LKPD, Materi Ajar, Kisi-kisi, Soal, dan Rubrik TANPA analisis ulang.
+Karena itu semua bagian HARUS saling konsisten (kode TP sama di semua bagian, materi sama, jumlah pertemuan sama).
+Gunakan Bahasa Indonesia formal. Keluarkan HANYA JSON valid tanpa penjelasan dan tanpa markdown fence. Isi setiap field secara padat namun bermakna (kalimat, bukan placeholder).`;
 
-    const prompt = `Analisis CP berikut dan bagi menjadi 3–8 materi/topik pembelajaran yang logis.
+    const prompt = `Analisis CP berikut, bagi menjadi 3–6 materi/topik logis, lalu keluarkan master data.
 
 Data:
 - Jenjang: ${data.jenjang}
@@ -56,22 +272,61 @@ Data:
 - Capaian Pembelajaran:
 ${data.cp}
 
-Keluarkan JSON array dengan format PERSIS:
-[
-  {
-    "no": 1,
-    "materi": "Judul materi/topik singkat",
-    "kompetensi": "Kompetensi/Tujuan utama yang ingin dicapai pada topik ini",
-    "pertemuan": 2,
-    "alokasi": "2 x (${data.alokasiPerPertemuan})"
-  }
-]
+Keluarkan JSON PERSIS dengan bentuk:
+{
+  "topics": [
+    {
+      "no": 1,
+      "materi": "Judul topik",
+      "kompetensi": "Kompetensi utama topik",
+      "pertemuan": 2,
+      "alokasi": "2 x (${data.alokasiPerPertemuan})",
+      "tp": [{"kode":"TP.1.1","rumusan":"...","indikator":"...","kktp":"kriteria ketercapaian","level":"C3"}],
+      "pemahamanBermakna": "...",
+      "pertanyaanPemantik": ["...","..."],
+      "model": "Problem Based Learning",
+      "alasanModel": "...",
+      "sintaks": ["Sintaks 1","..."],
+      "metode": "Diskusi, penugasan, presentasi",
+      "lintasDisiplin": "...",
+      "dimensiProfil": [{"dimensi":"Bernalar Kritis","penerapan":"..."}],
+      "materiFaktual": "...", "materiKonseptual": "...", "materiProsedural": "...", "materiMetakognitif": "...",
+      "pengetahuanAwal": "...", "minatBelajar": "...", "kebutuhanBelajar": "...",
+      "kemitraan": "...", "lingkungan": "...", "digital": "...",
+      "petaKonsep": ["Konsep utama > sub konsep","..."],
+      "uraianMateri": [{"judul":"Sub-bab","isi":"2-4 kalimat penjelasan mendalam disertai contoh"}],
+      "rangkuman": "...",
+      "pertemuanRinci": [
+        {"pertemuan":1,
+         "awal":["Pembukaan & doa (mindful) ...","Apersepsi ...","Penyampaian tujuan ..."],
+         "memahami":[{"guru":"...","siswa":"...","media":"...","alokasi":"15 menit"}],
+         "mengaplikasi":[{"guru":"...","siswa":"...","media":"...","alokasi":"25 menit"}],
+         "merefleksi":[{"guru":"...","siswa":"...","media":"...","alokasi":"10 menit"}],
+         "penutup":["Penguatan ...","Umpan balik ...","Informasi pertemuan berikutnya ..."]}
+      ],
+      "lkpd": {"alatBahan":["..."],"langkah":["..."],"pertanyaan":["...","...","...","...","..."]},
+      "asesmen": {
+        "diagnostik":[{"soal":"...","kunci":"..."}],
+        "formatif":[{"aspek":"...","indikator":"...","teknik":"Observasi","instrumen":"Lembar observasi"}],
+        "sumatif":[{"soal":"...","kunci":"...","skor":10}]
+      },
+      "kisi":[{"kodeTp":"TP.1.1","indikator":"...","materi":"...","level":"C3","bentuk":"Pilihan Ganda","nomor":"1","bobot":"1"}],
+      "soal": {
+        "pg":[{"no":1,"soal":"...","opsi":["A. ...","B. ...","C. ...","D. ...","E. ..."],"kunci":"B"}],
+        "uraian":[{"no":1,"soal":"...","kunci":"...","skor":10}]
+      },
+      "rubrik":[{"jenis":"Pengetahuan","aspek":"...","sangatBaik":"...","baik":"...","cukup":"...","perluBimbingan":"..."}],
+      "remedial":"...", "pengayaan":"...",
+      "refleksiGuru":["..."], "refleksiSiswa":["..."],
+      "glosarium":[{"istilah":"...","arti":"..."}],
+      "daftarPustaka":["..."]
+    }
+  ]
+}
 
-Ketentuan:
-- "pertemuan" adalah integer >= 1 sesuai kompleksitas.
-- "alokasi" = jumlah pertemuan dikali alokasi per pertemuan, format string seperti contoh.
-- Urutkan dari materi paling dasar ke lanjutan.
-- Hanya JSON, tanpa teks lain.`;
+Ketentuan jumlah minimal per topik: tp 2–4; pertanyaanPemantik 2–3; sintaks 4–6; dimensiProfil 2–3; petaKonsep 3–6; uraianMateri 3; pertemuanRinci sebanyak nilai "pertemuan" (aktivitas 1–2 baris per tahap); lkpd.pertanyaan 5; asesmen.diagnostik 5; asesmen.formatif 3; asesmen.sumatif 3; kisi 5–8; soal.pg 5; soal.uraian 3; rubrik 4–6 (campur Pengetahuan/Keterampilan/Sikap); refleksi 3.
+"pertemuan" harus proporsional dengan keluasan materi. Urutkan topik dari dasar ke lanjutan.
+Hanya JSON.`;
 
     const { text } = await generateText({
       model: gateway("google/gemini-2.5-flash"),
@@ -79,21 +334,37 @@ Ketentuan:
       prompt,
     });
 
-    let parsed: unknown;
+    let parsed: any;
     try {
       parsed = JSON.parse(extractJson(text));
     } catch {
       throw new Error("Gagal memproses hasil analisis AI.");
     }
-    if (!Array.isArray(parsed)) throw new Error("Format hasil tidak valid.");
+    const rawTopics = Array.isArray(parsed) ? parsed : parsed?.topics;
+    if (!Array.isArray(rawTopics) || rawTopics.length === 0)
+      throw new Error("Format hasil tidak valid.");
 
-    const topics: CpTopic[] = parsed.map((t: any, i: number) => ({
-      no: i + 1,
-      materi: String(t.materi ?? ""),
-      kompetensi: String(t.kompetensi ?? ""),
-      pertemuan: Math.max(1, parseInt(String(t.pertemuan ?? "1"), 10) || 1),
-      alokasi: String(t.alokasi ?? `${Math.max(1, parseInt(String(t.pertemuan ?? "1"), 10) || 1)} x (${data.alokasiPerPertemuan})`),
-    }));
+    const topics = rawTopics.map((t, i) => normalizeTopic(t, i, data.alokasiPerPertemuan));
 
-    return { topics };
+    const master: MasterData = {
+      jenjang: data.jenjang,
+      kelas: data.kelas,
+      fase: data.fase,
+      mapel: data.mapel,
+      semester: data.semester,
+      cp: data.cp,
+      alokasiPerPertemuan: data.alokasiPerPertemuan,
+      topics,
+    };
+
+    return {
+      topics: topics.map(({ no, materi, kompetensi, pertemuan, alokasi }) => ({
+        no,
+        materi,
+        kompetensi,
+        pertemuan,
+        alokasi,
+      })) as CpTopic[],
+      master,
+    };
   });
