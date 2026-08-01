@@ -14,6 +14,8 @@ import {
 } from "@/lib/admin-docs.functions";
 import { checkAccess, redeemToken, isAdmin as isAdminFn } from "@/lib/tokens.functions";
 import { downloadDocx, downloadPdf, downloadZipOfDocs } from "@/lib/exporters";
+import { buildModulAjarDocxBlob, downloadModulAjarDocx } from "@/lib/modul-ajar-template";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
