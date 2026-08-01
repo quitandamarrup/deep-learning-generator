@@ -44,7 +44,7 @@ function sliceBlock(xml: string, openToken: string, closeToken: string) {
   const openAt = xml.indexOf(openToken);
   const closeAt = xml.indexOf(closeToken);
   if (openAt === -1 || closeAt === -1) return null;
-  const start = xml.lastIndexOf("<w:p", openAt);
+  const start = Math.max(xml.lastIndexOf("<w:p>", openAt), xml.lastIndexOf("<w:p ", openAt));
   const endTag = xml.indexOf("</w:p>", closeAt);
   if (start === -1 || endTag === -1) return null;
   const end = endTag + "</w:p>".length;
