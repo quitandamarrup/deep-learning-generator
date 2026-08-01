@@ -221,10 +221,18 @@ export async function downloadZipOfDocs(
   zipName: string,
   docs: { key: string; filename: string; markdown: string; title: string }[],
   format: "docx" | "pdf",
+  /** Berkas DOCX siap pakai (mis. hasil Template Engine) yang menggantikan konversi markdown. */
+  overrides?: Record<string, Blob>,
 ) {
   const zip = new JSZip();
   if (format === "docx") {
     for (const d of docs) {
+      const override = overrides?.[d.key];
+      if (override) {
+        zip.file(`${d.filename}.docx`, await override.arrayBuffer());
+        continue;
+      }
+
       const blocks = parseMarkdown(d.markdown);
       const children: (Paragraph | Table)[] = [
         new Paragraph({
