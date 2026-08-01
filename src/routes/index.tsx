@@ -14,6 +14,8 @@ import {
 } from "@/lib/admin-docs.functions";
 import { checkAccess, redeemToken, isAdmin as isAdminFn } from "@/lib/tokens.functions";
 import { downloadDocx, downloadPdf, downloadZipOfDocs } from "@/lib/exporters";
+import { buildModulAjarDocxBlob, downloadModulAjarDocx } from "@/lib/modul-ajar-template";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -437,6 +439,19 @@ function Index() {
     const ok = await ensureAccess();
     if (!ok) return;
     const title = `${DOC_LABELS[d]} — ${form.mapel} ${form.kelas}`;
+    // Modul Ajar DOCX: salin Template Master lalu isi placeholder (tanpa membuat dokumen Word baru)
+    if (fmt === "docx" && d === "MODUL" && master && topics) {
+      const ctx = requireContext(true);
+      if (!ctx) return;
+      try {
+        await downloadModulAjarDocx(filenameFor(d), syncMaster(master, topics), ctx);
+        return;
+      } catch (e) {
+        console.error(e);
+        toast.error("Gagal mengisi Template Modul Ajar.");
+        return;
+      }
+    }
     if (fmt === "docx") await downloadDocx(filenameFor(d), md, title);
     else downloadPdf(filenameFor(d), md, title);
   };
@@ -449,6 +464,17 @@ function Index() {
     }
     const ok = await ensureAccess();
     if (!ok) return;
+    const overrides: Record<string, Blob> = {};
+    if (fmt === "docx" && master && topics && docs.MODUL) {
+      const ctx = requireContext(true);
+      if (ctx) {
+        try {
+          overrides.MODUL = await buildModulAjarDocxBlob(syncMaster(master, topics), ctx);
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    }
     await downloadZipOfDocs(
       `Administrasi-${(form.mapel || "output").replace(/\s+/g, "_")}-${(form.kelas || "").replace(/\s+/g, "_")}`,
       entries.map(([d, md]) => ({
@@ -458,8 +484,10 @@ function Index() {
         title: `${DOC_LABELS[d]} — ${form.mapel} ${form.kelas}`,
       })),
       fmt,
+      overrides,
     );
   };
+
 
   const generatedList = (Object.keys(docs) as DocType[]).filter((d) => !!docs[d]);
   const currentTab = activeTab && docs[activeTab] ? activeTab : generatedList[0] ?? null;
