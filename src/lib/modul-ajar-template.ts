@@ -194,7 +194,11 @@ export function buildModulAjarValues(master: MasterData, ctx: DocContextType) {
 
 /* ------------------------- pengisian template ------------------------- */
 
-export async function buildModulAjarDocxBlob(master: MasterData, ctx: DocContextType): Promise<Blob> {
+/** Isi Template Master langsung dari MASTER_KURIKULUM (tanpa AI). */
+export async function buildModulAjarDocxBlobFromMK(
+  mk: MasterKurikulum,
+  topicNo?: number,
+): Promise<Blob> {
   const res = await fetch(MODUL_AJAR_TEMPLATE_URL);
   if (!res.ok) throw new Error("Template Master Modul Ajar tidak ditemukan.");
   const zip = await JSZip.loadAsync(await res.arrayBuffer());
@@ -202,7 +206,8 @@ export async function buildModulAjarDocxBlob(master: MasterData, ctx: DocContext
   if (!docFile) throw new Error("Template Master tidak valid.");
   let xml = await docFile.async("string");
 
-  const { values, meetings } = buildModulAjarValues(master, ctx);
+  const { values, meetings } = buildModulAjarValuesFromMK(mk, topicNo);
+
 
   const block = sliceBlock(xml, "{{#PERTEMUAN}}", "{{/PERTEMUAN}}");
   if (block) {
