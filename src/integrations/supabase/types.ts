@@ -59,6 +59,57 @@ export type Database = {
         }
         Relationships: []
       }
+      master_kurikulum: {
+        Row: {
+          cp: string
+          cp_hash: string
+          created_at: string
+          data: Json
+          fase: string | null
+          id: string
+          jenjang: string | null
+          kelas: string | null
+          semester: string
+          subject: string
+          tahun_ajaran: string
+          updated_at: string
+          user_email: string | null
+          user_id: string
+        }
+        Insert: {
+          cp: string
+          cp_hash: string
+          created_at?: string
+          data: Json
+          fase?: string | null
+          id?: string
+          jenjang?: string | null
+          kelas?: string | null
+          semester: string
+          subject: string
+          tahun_ajaran: string
+          updated_at?: string
+          user_email?: string | null
+          user_id: string
+        }
+        Update: {
+          cp?: string
+          cp_hash?: string
+          created_at?: string
+          data?: Json
+          fase?: string | null
+          id?: string
+          jenjang?: string | null
+          kelas?: string | null
+          semester?: string
+          subject?: string
+          tahun_ajaran?: string
+          updated_at?: string
+          user_email?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
