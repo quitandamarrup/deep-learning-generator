@@ -225,6 +225,11 @@ export async function buildModulAjarDocxBlobFromMK(
   });
 }
 
+/** Kompatibilitas: Master Data + konteks → MASTER_KURIKULUM → DOCX. */
+export function buildModulAjarDocxBlob(master: MasterData, ctx: DocContextType) {
+  return buildModulAjarDocxBlobFromMK(buildMasterKurikulum(master, ctx), ctx.selectedTopicNo);
+}
+
 export async function downloadModulAjarDocx(filename: string, master: MasterData, ctx: DocContextType) {
   const blob = await buildModulAjarDocxBlob(master, ctx);
   saveAs(blob, filename.endsWith(".docx") ? filename : `${filename}.docx`);
