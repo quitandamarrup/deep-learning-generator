@@ -1,5 +1,5 @@
 import type { LanguageModel } from "ai";
-import { AI_MODELS, DEFAULT_MODEL, PROVIDERS } from "./providers";
+import { DEFAULT_MODEL, PROVIDERS } from "./providers";
 import type { AIModelId, ModelResolver, ProviderId } from "./providers";
 
 // ai.service.ts (and everything upstream of it) only ever calls getModel()

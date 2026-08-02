@@ -49,12 +49,15 @@ function sleep(ms: number): Promise<void> {
  */
 export async function withRetry<T>(fn: () => Promise<T>, options: RetryOptions = {}): Promise<T> {
   const {
-    attempts = 3,
+    attempts: requestedAttempts = 3,
     baseDelayMs = 500,
     maxDelayMs = 8_000,
     isRetryable = isRetryableByDefault,
     onRetry,
   } = options;
+  // Guard against a caller passing 0/negative attempts, which would otherwise
+  // skip the loop entirely and throw `undefined` instead of a real error.
+  const attempts = Math.max(1, requestedAttempts);
 
   let lastError: unknown;
 

@@ -58,6 +58,12 @@ function stableStringify(value: unknown): string {
   return `{${entries.join(",")}}`;
 }
 
+// Concurrent callers for the same key (e.g. a double-click, or two teachers
+// requesting the same CP analysis at once) would otherwise all see an empty
+// cache and fire duplicate AI calls. Tracking the in-flight promise per key
+// lets every concurrent caller await the single call already in progress.
+const inFlight = new Map<string, Promise<unknown>>();
+
 /** Wraps `fn`, returning the cached value if present, otherwise computing + caching it. */
 export async function withCache<T>(
   key: string,
@@ -67,7 +73,13 @@ export async function withCache<T>(
   const cached = getCached<T>(key);
   if (cached !== undefined) return { value: cached, cached: true };
 
-  const value = await fn();
+  const pending = inFlight.get(key) as Promise<T> | undefined;
+  if (pending) return { value: await pending, cached: false };
+
+  const promise = fn().finally(() => inFlight.delete(key));
+  inFlight.set(key, promise);
+
+  const value = await promise;
   setCached(key, value, ttlMs);
   return { value, cached: false };
 }

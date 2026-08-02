@@ -12,7 +12,6 @@ export type ModelResolver = (modelId: string) => LanguageModel;
 export type ProviderId = "lovable-gateway";
 
 export interface ProviderDefinition {
-  id: ProviderId;
   /** Builds this provider's model resolver. Called lazily and memoized by router.ts. */
   createResolver: () => ModelResolver;
 }
@@ -38,10 +37,7 @@ function createLovableGatewayResolver(): ModelResolver {
 // that provider's own API key/base URL) and add one entry below — router.ts
 // and ai.service.ts need no changes to start using it.
 export const PROVIDERS: Record<ProviderId, ProviderDefinition> = {
-  "lovable-gateway": {
-    id: "lovable-gateway",
-    createResolver: createLovableGatewayResolver,
-  },
+  "lovable-gateway": { createResolver: createLovableGatewayResolver },
 };
 
 // Model catalog for the currently active provider (Lovable AI Gateway, which
