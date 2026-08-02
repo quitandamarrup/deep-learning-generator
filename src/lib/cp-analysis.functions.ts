@@ -1,7 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
-import { generateText } from "ai";
 import { z } from "zod";
-import { createLovableAiGatewayProvider } from "./ai-gateway.server";
+import { askAI } from "./ai/ai.service";
 
 const CpAnalysisInput = z.object({
   jenjang: z.string().min(1),
@@ -250,10 +249,6 @@ function normalizeTopic(raw: any, i: number, alokasiPerPertemuan: string): Maste
 export const analyzeCP = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => CpAnalysisInput.parse(data))
   .handler(async ({ data }) => {
-    const key = process.env.LOVABLE_API_KEY;
-    if (!key) throw new Error("Missing LOVABLE_API_KEY");
-    const gateway = createLovableAiGatewayProvider(key);
-
     const system = `Anda adalah ahli kurikulum Indonesia (Kurikulum Merdeka / Pembelajaran Mendalam).
 Tugas Anda: SEKALI JALAN menganalisis Capaian Pembelajaran (CP) dan menghasilkan MASTER DATA ADMINISTRASI yang lengkap dan konsisten.
 Master data ini akan dipakai untuk menyusun TP, ATP, PROTA, PROSEM, KKTP, Modul Ajar, RPP, LKPD, Materi Ajar, Kisi-kisi, Soal, dan Rubrik TANPA analisis ulang.
@@ -328,11 +323,7 @@ Ketentuan jumlah minimal per topik: tp 2–4; pertanyaanPemantik 2–3; sintaks 
 "pertemuan" harus proporsional dengan keluasan materi. Urutkan topik dari dasar ke lanjutan.
 Hanya JSON.`;
 
-    const { text } = await generateText({
-      model: gateway("google/gemini-2.5-flash"),
-      system,
-      prompt,
-    });
+    const { text } = await askAI({ system, prompt });
 
     let parsed: any;
     try {

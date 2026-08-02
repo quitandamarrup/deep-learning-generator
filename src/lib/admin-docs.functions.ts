@@ -1,7 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
-import { generateText } from "ai";
 import { z } from "zod";
-import { createLovableAiGatewayProvider } from "./ai-gateway.server";
+import { askAI } from "./ai/ai.service";
 
 export const DOC_TYPES = [
   "RPP",
@@ -139,9 +138,6 @@ No | Kode TP | Indikator | Materi | Level Kognitif (C1–C6) | Bentuk Soal | Nom
 export const generateDoc = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => GenerateInput.parse(d))
   .handler(async ({ data }) => {
-    const key = process.env.LOVABLE_API_KEY;
-    if (!key) throw new Error("Missing LOVABLE_API_KEY");
-    const gateway = createLovableAiGatewayProvider(key);
     const ctx = data.context;
 
     const system = `Anda adalah ahli kurikulum Indonesia yang menyusun Administrasi Pembelajaran (Kurikulum Merdeka / Pembelajaran Mendalam) dalam Bahasa Indonesia formal.
@@ -174,10 +170,6 @@ ${docInstructions(data.docType, ctx)}
 
 Keluarkan hanya konten Markdown final.`;
 
-    const { text } = await generateText({
-      model: gateway("google/gemini-2.5-flash"),
-      system,
-      prompt,
-    });
+    const { text } = await askAI({ system, prompt });
     return { markdown: text };
   });

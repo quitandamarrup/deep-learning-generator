@@ -1,7 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
-import { generateText } from "ai";
 import { z } from "zod";
-import { createLovableAiGatewayProvider } from "./ai-gateway.server";
+import { askAI } from "./ai/ai.service";
 
 const RppInput = z.object({
   penyusun: z.string().min(1),
@@ -24,10 +23,6 @@ export type RppInputType = z.infer<typeof RppInput>;
 export const generateRPP = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => RppInput.parse(data))
   .handler(async ({ data }) => {
-    const key = process.env.LOVABLE_API_KEY;
-    if (!key) throw new Error("Missing LOVABLE_API_KEY");
-    const gateway = createLovableAiGatewayProvider(key);
-
     const system = `Anda adalah asisten ahli kurikulum Indonesia yang membuat Rencana Pelaksanaan Pembelajaran (RPP) / Perencanaan Pembelajaran Mendalam.
 Ikuti kerangka Pembelajaran Mendalam: Mindful, Meaningful, Joyful.
 Tulis dalam Bahasa Indonesia formal, profesional, dan kontekstual sesuai jenjang, mata pelajaran, dan materi.
@@ -98,11 +93,7 @@ Kolom kanan: "[Tempat], [Tanggal]\\nGuru Mata Pelajaran/Kelas\\n\\n\\n(${data.pe
 
 Keluarkan hanya konten Markdown, tanpa pembuka atau penutup.`;
 
-    const { text } = await generateText({
-      model: gateway("google/gemini-2.5-flash"),
-      system,
-      prompt,
-    });
+    const { text } = await askAI({ system, prompt });
 
     return { markdown: text };
   });

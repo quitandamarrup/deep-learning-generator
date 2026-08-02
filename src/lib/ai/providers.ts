@@ -1,10 +1,51 @@
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
-import type { OpenAICompatibleProvider } from "@ai-sdk/openai-compatible";
+import type { LanguageModel } from "ai";
 
-// Central place for "which AI provider/model do we call". Keeping this separate
-// from ai.service.ts means swapping providers (or adding a fallback provider)
-// never touches retry/cache/call-site logic.
+// A provider resolves a model id (e.g. "google/gemini-2.5-flash") into a
+// LanguageModel ready to pass into generateText/streamText. New providers
+// (DeepSeek, Groq, OpenRouter, ...) register themselves in PROVIDERS below —
+// router.ts decides which registered provider is actually active, so nothing
+// else in the app needs to know or care which one is used.
 
+export type ModelResolver = (modelId: string) => LanguageModel;
+
+export type ProviderId = "lovable-gateway";
+
+export interface ProviderDefinition {
+  id: ProviderId;
+  /** Builds this provider's model resolver. Called lazily and memoized by router.ts. */
+  createResolver: () => ModelResolver;
+}
+
+function createLovableGatewayResolver(): ModelResolver {
+  const apiKey = process.env.LOVABLE_API_KEY;
+  if (!apiKey) throw new Error("Missing LOVABLE_API_KEY");
+
+  const provider = createOpenAICompatible({
+    name: "lovable-ai-gateway",
+    baseURL: "https://ai.gateway.lovable.dev/v1",
+    headers: {
+      "Lovable-API-Key": apiKey,
+      "X-Lovable-AIG-SDK": "vercel-ai-sdk",
+    },
+  });
+
+  return (modelId: string) => provider(modelId);
+}
+
+// Registry of every provider the app knows how to build. To add DeepSeek,
+// Groq, or OpenRouter later: implement its own createResolver here (reading
+// that provider's own API key/base URL) and add one entry below — router.ts
+// and ai.service.ts need no changes to start using it.
+export const PROVIDERS: Record<ProviderId, ProviderDefinition> = {
+  "lovable-gateway": {
+    id: "lovable-gateway",
+    createResolver: createLovableGatewayResolver,
+  },
+};
+
+// Model catalog for the currently active provider (Lovable AI Gateway, which
+// currently proxies to Gemini 2.5). This is unchanged from before the refactor.
 export const AI_MODELS = {
   flash: "google/gemini-2.5-flash",
   pro: "google/gemini-2.5-pro",
@@ -13,33 +54,3 @@ export const AI_MODELS = {
 export type AIModelId = (typeof AI_MODELS)[keyof typeof AI_MODELS];
 
 export const DEFAULT_MODEL: AIModelId = AI_MODELS.flash;
-
-function createLovableAiGatewayProvider(apiKey: string) {
-  return createOpenAICompatible({
-    name: "lovable-ai-gateway",
-    baseURL: "https://ai.gateway.lovable.dev/v1",
-    headers: {
-      "Lovable-API-Key": apiKey,
-      "X-Lovable-AIG-SDK": "vercel-ai-sdk",
-    },
-  });
-}
-
-// Reuse the same provider instance across calls instead of rebuilding it (and
-// re-reading process.env) on every request.
-let cachedProvider: OpenAICompatibleProvider | undefined;
-
-function getProvider(): OpenAICompatibleProvider {
-  if (cachedProvider) return cachedProvider;
-
-  const key = process.env.LOVABLE_API_KEY;
-  if (!key) throw new Error("Missing LOVABLE_API_KEY");
-
-  cachedProvider = createLovableAiGatewayProvider(key);
-  return cachedProvider;
-}
-
-/** Resolve a chat-completion model handle ready to pass into generateText/streamText. */
-export function getModel(modelId: AIModelId = DEFAULT_MODEL) {
-  return getProvider()(modelId);
-}
