@@ -1,6 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { askAI } from "./ai/ai.service";
+import { AiError, classifyAskAIError } from "./ai/ai-errors";
+import { buildCacheKey } from "./ai/cache";
+import { cpFingerprint } from "./curriculum-fingerprint";
 
 const CpAnalysisInput = z.object({
   jenjang: z.string().min(1),
@@ -323,17 +326,71 @@ Ketentuan jumlah minimal per topik: tp 2–4; pertanyaanPemantik 2–3; sintaks 
 "pertemuan" harus proporsional dengan keluasan materi. Urutkan topik dari dasar ke lanjutan.
 Hanya JSON.`;
 
-    const { text } = await askAI({ system, prompt });
+    const cacheKey = buildCacheKey("cp-analysis", {
+      jenjang: data.jenjang,
+      kelas: data.kelas,
+      fase: data.fase,
+      mapel: data.mapel,
+      semester: data.semester,
+      alokasiPerPertemuan: data.alokasiPerPertemuan,
+      cp: cpFingerprint(data.cp),
+    });
+
+    let text: string;
+    try {
+      ({ text } = await askAI({
+        system,
+        prompt,
+        cacheKey,
+        cacheTtlMs: 60 * 60 * 1000, // 1 jam — CP yang sama sering dianalisis ulang dalam satu sesi
+        retry: {
+          onRetry: (error, attempt, delayMs) => {
+            console.error(
+              `[analyzeCP] retry ${attempt} setelah ${delayMs}ms:`,
+              error instanceof Error ? error.message : error,
+            );
+          },
+        },
+      }));
+    } catch (error) {
+      throw classifyAskAIError(error);
+    }
 
     let parsed: any;
     try {
       parsed = JSON.parse(extractJson(text));
-    } catch {
-      throw new Error("Gagal memproses hasil analisis AI.");
+    } catch (cause) {
+      throw new AiError(
+        "AI_INVALID_JSON",
+        "Gagal memproses hasil analisis AI (format JSON tidak valid).",
+        { cause },
+      );
     }
     const rawTopics = Array.isArray(parsed) ? parsed : parsed?.topics;
     if (!Array.isArray(rawTopics) || rawTopics.length === 0)
-      throw new Error("Format hasil tidak valid.");
+      throw new AiError("AI_EMPTY_RESULT", "Hasil analisis AI kosong atau tidak berisi topik.");
+
+    // Validate the RAW AI output before normalizeTopic's own defaulting (e.g.
+    // clamping a missing pertemuan to 1, or synthesizing a placeholder TP)
+    // has a chance to mask a genuine AI defect as if it were valid.
+    const invalidRaw = (rawTopics as unknown[]).find((raw) => {
+      const t = raw as { materi?: unknown; pertemuan?: unknown; tp?: unknown };
+      const materiEmpty = !String(t?.materi ?? "").trim();
+      const pertemuanValue = t?.pertemuan;
+      const pertemuanInvalid =
+        pertemuanValue !== undefined && pertemuanValue !== null && Number(pertemuanValue) <= 0;
+      const tpRaw = Array.isArray(t?.tp) ? (t.tp as unknown[]) : [];
+      const tpMissing =
+        tpRaw.length === 0 ||
+        !tpRaw.some((tp) => String((tp as { rumusan?: unknown })?.rumusan ?? "").trim());
+      return materiEmpty || pertemuanInvalid || tpMissing;
+    });
+    if (invalidRaw) {
+      throw new AiError(
+        "AI_VALIDATION_ERROR",
+        "Hasil analisis AI tidak lengkap (ada topik dengan materi/pertemuan/tujuan pembelajaran kosong). Coba analisis ulang.",
+      );
+    }
 
     const topics = rawTopics.map((t, i) => normalizeTopic(t, i, data.alokasiPerPertemuan));
 

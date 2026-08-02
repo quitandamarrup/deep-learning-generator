@@ -17,7 +17,7 @@ export interface RetryOptions {
 
 const RETRYABLE_STATUS_CODES = new Set([408, 409, 425, 429, 500, 502, 503, 504]);
 
-function getStatusCode(error: unknown): number | undefined {
+export function getStatusCode(error: unknown): number | undefined {
   if (typeof error !== "object" || error === null) return undefined;
   const { status, statusCode } = error as { status?: unknown; statusCode?: unknown };
   const value = status ?? statusCode;

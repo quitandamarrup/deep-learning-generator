@@ -1,5 +1,6 @@
 import type { DocContextType } from "./admin-docs.functions";
 import type { MasterData, MasterTopic } from "./cp-analysis.functions";
+import { cpFingerprint } from "./curriculum-fingerprint";
 
 /**
  * MASTER_KURIKULUM
@@ -232,12 +233,74 @@ export function unitOf(mk: MasterKurikulum, topicNo?: number): MkUnit | undefine
 }
 
 /** Sidik CP: dipakai untuk mendeteksi perubahan CP → Master Kurikulum baru. */
-export function cpFingerprint(cp: string): string {
-  const s = cp.replace(/\s+/g, " ").trim().toLowerCase();
-  let h1 = 0x811c9dc5;
-  for (let i = 0; i < s.length; i++) {
-    h1 ^= s.charCodeAt(i);
-    h1 = (h1 * 0x01000193) >>> 0;
-  }
-  return `${s.length.toString(36)}-${h1.toString(36)}`;
+export { cpFingerprint } from "./curriculum-fingerprint";
+
+/**
+ * MASTER_KURIKULUM_CORE (Sprint 2, Step 2/8)
+ *
+ * A lightweight projection of MasterKurikulum — just enough to list topics,
+ * show TP/indikator, and pick a model/pendekatan — without the full detailed
+ * payload (pengalamanBelajar per-pertemuan, lkpd, kisi, soal, rubrik, lampiran).
+ *
+ * This is derived FROM MasterKurikulum (pure, no AI call) rather than a
+ * second source of truth: MasterKurikulum remains the one object every
+ * document generator reads from. MkUnitCore/MasterKurikulumCore exist so a
+ * future "topics overview" screen or a future on-demand detail-generation
+ * endpoint has a ready-made lightweight shape to build against, without
+ * needing the full detailed fields loaded/transferred.
+ */
+export type MkUnitCore = {
+  no: number;
+  elemen: string;
+  topik: string;
+  subTopik: string[];
+  materi: string;
+  jumlahPertemuan: number;
+  alokasiWaktu: string;
+  tujuanPembelajaran: { kode: string; rumusan: string; indikator: string; level: string }[];
+  praktikPedagogis: { modelPembelajaran: string; pendekatan: string; metode: string };
+  asesmenRingkas: string;
+  ringkasan: string;
+};
+
+export type MasterKurikulumCore = {
+  version: 1;
+  identitas: MkIdentitas;
+  cp: string;
+  cpFingerprint: string;
+  alokasiPerPertemuan: string;
+  units: MkUnitCore[];
+};
+
+/** Derive the lightweight CORE view from a full MasterKurikulum — pure projection, no AI call. */
+export function toMasterKurikulumCore(mk: MasterKurikulum): MasterKurikulumCore {
+  return {
+    version: 1,
+    identitas: mk.identitas,
+    cp: mk.cp,
+    cpFingerprint: cpFingerprint(mk.cp),
+    alokasiPerPertemuan: mk.alokasiPerPertemuan,
+    units: mk.units.map((u) => ({
+      no: u.no,
+      elemen: u.elemen,
+      topik: u.topik,
+      subTopik: u.subTopik,
+      materi: u.materi,
+      jumlahPertemuan: u.jumlahPertemuan,
+      alokasiWaktu: u.alokasiWaktu,
+      tujuanPembelajaran: u.tujuanPembelajaran.map(({ kode, rumusan, indikator, level }) => ({
+        kode,
+        rumusan,
+        indikator,
+        level,
+      })),
+      praktikPedagogis: {
+        modelPembelajaran: u.praktikPedagogis.modelPembelajaran,
+        pendekatan: u.praktikPedagogis.pendekatan,
+        metode: u.praktikPedagogis.metode,
+      },
+      asesmenRingkas: u.ringkasanModul.asesmen,
+      ringkasan: u.ringkasanModul.alur,
+    })),
+  };
 }
