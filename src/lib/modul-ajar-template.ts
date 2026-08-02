@@ -1,7 +1,13 @@
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
 import type { DocContextType } from "./admin-docs.functions";
-import type { MasterData, MasterTopic } from "./cp-analysis.functions";
+import type { MasterData } from "./cp-analysis.functions";
+import {
+  buildMasterKurikulum,
+  unitOf,
+  type MasterKurikulum,
+} from "./master-kurikulum";
+
 
 /**
  * TEMPLATE ENGINE MODUL AJAR
@@ -51,65 +57,73 @@ function sliceBlock(xml: string, openToken: string, closeToken: string) {
   return { start, end, block: xml.slice(start, end) };
 }
 
-/* ------------------------- pemetaan Master Data ------------------------- */
+/* ------------------- pemetaan dari MASTER_KURIKULUM ------------------- */
 
 const j = (arr: (string | undefined)[] | undefined, sep = "; ") =>
   (arr ?? []).map((x) => (x ?? "").trim()).filter(Boolean).join(sep);
 
-function topicOf(master: MasterData, ctx: DocContextType): MasterTopic {
-  const no = ctx.selectedTopicNo;
-  return (no ? master.topics.find((t) => t.no === no) : undefined) ?? master.topics[0];
-}
-
-export function buildModulAjarValues(master: MasterData, ctx: DocContextType) {
-  const t = topicOf(master, ctx);
-  const faseKelas = `${ctx.fase} / ${ctx.kelas}`;
-  const alokasi = t?.alokasi || `${t?.pertemuan ?? 1} x (${ctx.alokasiPerPertemuan})`;
-  const tp = t?.tp ?? [];
-  const rubrik = t?.rubrik ?? [];
-  const lkpd = t?.lkpd;
+/** Seluruh nilai template diambil dari MASTER_KURIKULUM — tanpa memanggil AI. */
+export function buildModulAjarValuesFromMK(mk: MasterKurikulum, topicNo?: number) {
+  const id = mk.identitas;
+  const u = unitOf(mk, topicNo);
+  const tp = u?.tujuanPembelajaran ?? [];
+  const rubrik = u?.rubrik ?? [];
+  const lkpd = u?.lkpd;
 
   const values: Values = {
-    MAPEL: ctx.mapel,
-    FASE_KELAS: faseKelas,
-    TOPIK: t?.materi ?? "",
-    ALOKASI: alokasi,
-    PENYUSUN: `${ctx.penyusun}${ctx.satuan ? ` — ${ctx.satuan}` : ""}`,
-    JUDUL_MODUL: t?.materi ?? "",
-    PROFIL_LULUSAN: j((t?.dimensiProfil ?? []).map((d) => d.dimensi)),
-    KARAKTERISTIK: j([t?.pengetahuanAwal, t?.minatBelajar, t?.kebutuhanBelajar]),
+    NAMA_SEKOLAH: id.namaSekolah,
+    GURU: id.guru,
+    MAPEL: id.mapel,
+    FASE_KELAS: `${id.fase} / ${id.kelas}`,
+    SEMESTER: id.semester,
+    TAHUN_AJARAN: id.tahunAjaran,
+    TOPIK: u?.topik ?? "",
+    ALOKASI: u?.alokasiWaktu ?? "",
+    PENYUSUN: `${id.guru}${id.namaSekolah ? ` — ${id.namaSekolah}` : ""}`,
+    JUDUL_MODUL: u?.topik ?? "",
+    PROFIL_LULUSAN: j((u?.profilLulusan ?? []).map((d) => d.dimensi)),
+    KARAKTERISTIK: j([
+      u?.karakteristikMurid.pengetahuanAwal,
+      u?.karakteristikMurid.minatBelajar,
+      u?.karakteristikMurid.kebutuhanBelajar,
+    ]),
     // CP ditempel apa adanya sesuai input guru
-    CP_ELEMEN: t?.kompetensi ?? "",
-    CP: ctx.cp,
-    MATERI_INTI: j([t?.materiFaktual, t?.materiKonseptual, t?.materiProsedural, t?.materiMetakognitif], " "),
-    PRAKTIK_PEDAGOGIS: [t?.model, t?.metode].filter(Boolean).join(" — "),
-    LINGKUNGAN: j([t?.lingkungan, t?.digital, t?.kemitraan]),
-    DIFERENSIASI: j([t?.kebutuhanBelajar, t?.minatBelajar]),
-    DIAG_TEKNIK: j((t?.asesmen?.diagnostik ?? []).map((d) => d.soal)),
-    DIAG_TINDAK: t?.remedial ?? "",
-    FORM_TEKNIK: j((t?.asesmen?.formatif ?? []).map((f) => `${f.teknik}: ${f.instrumen}`)),
-    FORM_TINDAK: [t?.remedial, t?.pengayaan].filter(Boolean).join(" / "),
-    SUM_TEKNIK: j((t?.asesmen?.sumatif ?? []).map((s) => s.soal)),
-    SUM_TINDAK: t?.pengayaan ?? "",
-    RINGKASAN_TP: tp.map((x, i) => `${i + 1}. ${x.rumusan}`).join("\n"),
-    RINGKASAN_ALUR: (t?.pertemuanRinci ?? [])
-      .map(
-        (p) =>
-          `Pertemuan ${p.pertemuan}: Memahami ${p.memahami[0]?.siswa ?? "-"} → Mengaplikasi ${
-            p.mengaplikasi[0]?.siswa ?? "-"
-          } → Merefleksi ${p.merefleksi[0]?.siswa ?? "-"}`,
-      )
-      .join("\n"),
-    RINGKASAN_ASESMEN: j((t?.asesmen?.sumatif ?? []).map((s) => s.soal)),
-    LAMP1_KET: t?.pertemuan ? "Digunakan pada tahap Mengaplikasi pertemuan 1." : "",
-    LAMP2_KET: (t?.pertemuan ?? 0) >= 2 ? "Digunakan pada tahap Mengaplikasi pertemuan 2." : "",
-    LAMP3_KET: (t?.pertemuan ?? 0) >= 3 ? "Digunakan pada tahap Mengaplikasi pertemuan 3." : "",
-    LAMP5_KET: j([...(t?.pertemuanRinci?.[0]?.memahami ?? []).map((a) => a.media), ...(t?.daftarPustaka ?? [])]),
-    LAMP6_KET: j(t?.refleksiSiswa),
+    CP_ELEMEN: u?.elemen ?? "",
+    CP: mk.cp,
+    MATERI_INTI: j(
+      [
+        u?.materiInti.faktual,
+        u?.materiInti.konseptual,
+        u?.materiInti.prosedural,
+        u?.materiInti.metakognitif,
+      ],
+      " ",
+    ),
+    PRAKTIK_PEDAGOGIS: [u?.praktikPedagogis.modelPembelajaran, u?.praktikPedagogis.metode]
+      .filter(Boolean)
+      .join(" — "),
+    LINGKUNGAN: u?.lingkunganPembelajaran ?? "",
+    MEDIA: j(u?.media),
+    SUMBER_BELAJAR: j(u?.sumberBelajar),
+    DIFERENSIASI: u?.diferensiasi ?? "",
+    DIAG_TEKNIK: j((u?.asesmenAwal ?? []).map((d) => d.soal)),
+    DIAG_TINDAK: u?.tindakLanjut.remedial ?? "",
+    FORM_TEKNIK: j((u?.asesmenFormatif ?? []).map((f) => `${f.teknik}: ${f.instrumen}`)),
+    FORM_TINDAK: [u?.tindakLanjut.remedial, u?.tindakLanjut.pengayaan].filter(Boolean).join(" / "),
+    SUM_TEKNIK: j((u?.asesmenSumatif ?? []).map((s) => s.soal)),
+    SUM_TINDAK: u?.tindakLanjut.pengayaan ?? "",
+    RINGKASAN_TP: u?.ringkasanModul.tp ?? "",
+    RINGKASAN_ALUR: u?.ringkasanModul.alur ?? "",
+    RINGKASAN_ASESMEN: u?.ringkasanModul.asesmen ?? "",
+    LAMP1_KET: u?.jumlahPertemuan ? "Digunakan pada tahap Mengaplikasi pertemuan 1." : "",
+    LAMP2_KET: (u?.jumlahPertemuan ?? 0) >= 2 ? "Digunakan pada tahap Mengaplikasi pertemuan 2." : "",
+    LAMP3_KET: (u?.jumlahPertemuan ?? 0) >= 3 ? "Digunakan pada tahap Mengaplikasi pertemuan 3." : "",
+    LAMP5_KET: j([...(u?.media ?? []), ...(u?.sumberBelajar ?? [])]),
+    LAMP6_KET: j(u?.refleksi.siswa),
     LKPD_PERTEMUAN: "1",
     LKPD_TAHAP: "Mengaplikasi",
     LKPD_TUJUAN: tp[0]?.rumusan ?? "",
-    LKPD_STIMULUS: j(lkpd?.alatBahan) || t?.pemahamanBermakna || "",
+    LKPD_STIMULUS: j(lkpd?.alatBahan) || u?.ringkasanModul.pemahamanBermakna || "",
     LKPD_TUGAS_1: lkpd?.pertanyaan?.[0] ?? "",
     LKPD_TUGAS_2: lkpd?.pertanyaan?.[1] ?? "",
     LKPD_TUGAS_3: lkpd?.pertanyaan?.[2] ?? "",
@@ -120,7 +134,7 @@ export function buildModulAjarValues(master: MasterData, ctx: DocContextType) {
     const x = tp[i];
     values[`TP${i + 1}_RUMUSAN`] = x?.rumusan ?? "";
     values[`TP${i + 1}_INDIKATOR`] = x?.indikator ?? "";
-    values[`TP${i + 1}_BUKTI`] = x?.kktp ?? "";
+    values[`TP${i + 1}_BUKTI`] = x?.buktiBelajar ?? "";
   }
 
   // Rubrik 4 slot pada 3.2
@@ -136,9 +150,8 @@ export function buildModulAjarValues(master: MasterData, ctx: DocContextType) {
   // Rubrik Penilaian Saja (3 slot)
   for (let i = 0; i < 3; i++) {
     const r = rubrik[i];
-    values[`RS${i + 1}_TP`] = tp[Math.min(i, Math.max(tp.length - 1, 0))]?.kode
-      ? `${tp[Math.min(i, tp.length - 1)].kode}: ${tp[Math.min(i, tp.length - 1)].rumusan}`
-      : "";
+    const t = tp.length ? tp[Math.min(i, tp.length - 1)] : undefined;
+    values[`RS${i + 1}_TP`] = t ? `${t.kode}: ${t.rumusan}` : "";
     values[`RS${i + 1}_IND`] = r?.aspek ?? "";
     values[`RS${i + 1}_MB`] = r?.perluBimbingan ?? "";
     values[`RS${i + 1}_BSH`] = r?.baik ?? "";
@@ -146,25 +159,25 @@ export function buildModulAjarValues(master: MasterData, ctx: DocContextType) {
   }
 
   // Blok pertemuan otomatis sesuai jumlah pertemuan hasil Analisis CP
-  const count = Math.max(1, t?.pertemuan ?? (t?.pertemuanRinci?.length || 1));
+  const count = Math.max(1, u?.jumlahPertemuan ?? (u?.pengalamanBelajar.length || 1));
   const meetings: Values[] = [];
   for (let i = 0; i < count; i++) {
-    const p = t?.pertemuanRinci?.[i];
+    const p = u?.pengalamanBelajar?.[i];
     meetings.push({
       P_NO: String(i + 1),
-      P_SUBTOPIK: t?.uraianMateri?.[i]?.judul ?? t?.materi ?? "",
-      P_PEMANTIK: t?.pertanyaanPemantik?.[i] ?? t?.pertanyaanPemantik?.[0] ?? "",
+      P_SUBTOPIK: u?.subTopik?.[i] ?? u?.topik ?? "",
+      P_PEMANTIK: p?.pemantik ?? "",
       P_PENDAHULUAN_1: p?.awal?.[0] ?? "",
       P_PENDAHULUAN_2: j(p?.awal?.slice(1)),
       P_MEMAHAMI_AKT: j((p?.memahami ?? []).map((a) => `Guru: ${a.guru} Murid: ${a.siswa}`), " "),
       P_MEMAHAMI_PRODUK: j((p?.memahami ?? []).map((a) => a.media)),
-      P_MEMAHAMI_ASESMEN: t?.asesmen?.formatif?.[0]?.teknik ?? "",
+      P_MEMAHAMI_ASESMEN: u?.asesmenFormatif?.[0]?.teknik ?? "",
       P_MENGAPLIKASI_AKT: j((p?.mengaplikasi ?? []).map((a) => `Guru: ${a.guru} Murid: ${a.siswa}`), " "),
       P_MENGAPLIKASI_PRODUK: j((p?.mengaplikasi ?? []).map((a) => a.media)),
-      P_MENGAPLIKASI_ASESMEN: t?.asesmen?.formatif?.[1]?.teknik ?? "",
+      P_MENGAPLIKASI_ASESMEN: u?.asesmenFormatif?.[1]?.teknik ?? "",
       P_MEREFLEKSI_AKT: j((p?.merefleksi ?? []).map((a) => `Guru: ${a.guru} Murid: ${a.siswa}`), " "),
       P_MEREFLEKSI_PRODUK: j((p?.merefleksi ?? []).map((a) => a.media)),
-      P_MEREFLEKSI_ASESMEN: t?.asesmen?.formatif?.[2]?.teknik ?? "",
+      P_MEREFLEKSI_ASESMEN: u?.asesmenFormatif?.[2]?.teknik ?? "",
       P_PENUTUP_1: p?.penutup?.[0] ?? "",
       P_PENUTUP_2: j(p?.penutup?.slice(1)),
     });
@@ -173,9 +186,19 @@ export function buildModulAjarValues(master: MasterData, ctx: DocContextType) {
   return { values, meetings };
 }
 
+/** Kompatibilitas: Master Data + konteks form → MASTER_KURIKULUM → nilai template. */
+export function buildModulAjarValues(master: MasterData, ctx: DocContextType) {
+  return buildModulAjarValuesFromMK(buildMasterKurikulum(master, ctx), ctx.selectedTopicNo);
+}
+
+
 /* ------------------------- pengisian template ------------------------- */
 
-export async function buildModulAjarDocxBlob(master: MasterData, ctx: DocContextType): Promise<Blob> {
+/** Isi Template Master langsung dari MASTER_KURIKULUM (tanpa AI). */
+export async function buildModulAjarDocxBlobFromMK(
+  mk: MasterKurikulum,
+  topicNo?: number,
+): Promise<Blob> {
   const res = await fetch(MODUL_AJAR_TEMPLATE_URL);
   if (!res.ok) throw new Error("Template Master Modul Ajar tidak ditemukan.");
   const zip = await JSZip.loadAsync(await res.arrayBuffer());
@@ -183,7 +206,8 @@ export async function buildModulAjarDocxBlob(master: MasterData, ctx: DocContext
   if (!docFile) throw new Error("Template Master tidak valid.");
   let xml = await docFile.async("string");
 
-  const { values, meetings } = buildModulAjarValues(master, ctx);
+  const { values, meetings } = buildModulAjarValuesFromMK(mk, topicNo);
+
 
   const block = sliceBlock(xml, "{{#PERTEMUAN}}", "{{/PERTEMUAN}}");
   if (block) {
@@ -199,6 +223,11 @@ export async function buildModulAjarDocxBlob(master: MasterData, ctx: DocContext
     type: "blob",
     mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   });
+}
+
+/** Kompatibilitas: Master Data + konteks → MASTER_KURIKULUM → DOCX. */
+export function buildModulAjarDocxBlob(master: MasterData, ctx: DocContextType) {
+  return buildModulAjarDocxBlobFromMK(buildMasterKurikulum(master, ctx), ctx.selectedTopicNo);
 }
 
 export async function downloadModulAjarDocx(filename: string, master: MasterData, ctx: DocContextType) {

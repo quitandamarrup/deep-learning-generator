@@ -15,6 +15,12 @@ import {
 import { checkAccess, redeemToken, isAdmin as isAdminFn } from "@/lib/tokens.functions";
 import { downloadDocx, downloadPdf, downloadZipOfDocs } from "@/lib/exporters";
 import { buildModulAjarDocxBlob, downloadModulAjarDocx } from "@/lib/modul-ajar-template";
+import {
+  buildMasterKurikulum,
+  cpFingerprint,
+  type MasterKurikulum,
+} from "@/lib/master-kurikulum";
+import { loadMasterKurikulum, saveMasterKurikulum } from "@/lib/master-kurikulum.functions";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -117,6 +123,8 @@ function Index() {
   const runCheckAccess = useServerFn(checkAccess);
   const runRedeem = useServerFn(redeemToken);
   const runIsAdmin = useServerFn(isAdminFn);
+  const runSaveMK = useServerFn(saveMasterKurikulum);
+  const runLoadMK = useServerFn(loadMasterKurikulum);
 
   const [form, setForm] = useState<FormState>(defaultForm);
   const [user, setUser] = useState<User | null>(null);
@@ -126,6 +134,8 @@ function Index() {
   const [analyzing, setAnalyzing] = useState(false);
   const [topics, setTopics] = useState<CpTopic[] | null>(null);
   const [master, setMaster] = useState<MasterData | null>(null);
+  // MASTER_KURIKULUM: sumber data utama seluruh administrasi pembelajaran
+  const [masterKurikulum, setMasterKurikulum] = useState<MasterKurikulum | null>(null);
   const [selectedTopicNo, setSelectedTopicNo] = useState<number | null>(null);
 
   const [selectedDocs, setSelectedDocs] = useState<Set<DocType>>(new Set(["RPP"]));
@@ -189,6 +199,7 @@ function Index() {
     setDocs({});
     setTopics(null);
     setMaster(null);
+    setMasterKurikulum(null);
     setSelectedTopicNo(null);
     toast.success("Anda telah keluar.");
   };
@@ -239,6 +250,63 @@ function Index() {
     };
   };
 
+  /** Simpan hasil Analisis CP sebagai MASTER_KURIKULUM (1 per User+Mapel+Semester+Tahun Ajaran). */
+  const persistMasterKurikulum = async (data: MasterData, ts: CpTopic[]) => {
+    const ctx: DocContextType = {
+      penyusun: form.penyusun,
+      satuan: form.satuan,
+      tahunAjaran: form.tahunAjaran,
+      semester: form.semester,
+      jenjang: form.jenjang,
+      kelas: form.kelas,
+      fase: form.fase,
+      mapel: form.mapel,
+      cp: form.cp,
+      alokasiPerPertemuan: form.alokasi,
+      info: form.info,
+      topics: ts,
+      selectedTopicNo: undefined,
+    };
+    const mk = buildMasterKurikulum(syncMaster(data, ts), ctx);
+    setMasterKurikulum(mk);
+    if (!user || !form.mapel.trim() || !form.semester.trim() || !form.tahunAjaran.trim()) return;
+    try {
+      await runSaveMK({
+        data: {
+          subject: form.mapel,
+          semester: form.semester,
+          tahunAjaran: form.tahunAjaran,
+          jenjang: form.jenjang,
+          kelas: form.kelas,
+          fase: form.fase,
+          cp: form.cp,
+          cpHash: cpFingerprint(form.cp),
+          data: mk,
+        },
+      });
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // Muat MASTER_KURIKULUM tersimpan (tanpa memanggil AI) bila tersedia.
+  useEffect(() => {
+    if (!user || !form.mapel.trim() || !form.semester.trim() || !form.tahunAjaran.trim()) return;
+    if (masterKurikulum) return;
+    let cancelled = false;
+    runLoadMK({
+      data: { subject: form.mapel, semester: form.semester, tahunAjaran: form.tahunAjaran },
+    })
+      .then((r) => {
+        if (!cancelled && r.found) setMasterKurikulum(r.masterKurikulum);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, form.mapel, form.semester, form.tahunAjaran]);
+
   const handleAnalyze = async () => {
     const need: (keyof FormState)[] = ["jenjang", "kelas", "fase", "mapel", "semester", "cp", "alokasi"];
     for (const k of need) {
@@ -263,6 +331,7 @@ function Index() {
       setTopics(res.topics);
       setMaster(res.master);
       setSelectedTopicNo(res.topics[0]?.no ?? null);
+      void persistMasterKurikulum(res.master, res.topics);
       setDocs({}); // invalidate old docs
       setActiveTab(null);
       setTimeout(
