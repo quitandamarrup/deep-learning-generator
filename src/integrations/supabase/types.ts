@@ -110,6 +110,54 @@ export type Database = {
         }
         Relationships: []
       }
+      teacher_profiles: {
+        Row: {
+          academic_year: string | null
+          created_at: string
+          education_level: string | null
+          full_name: string
+          id: string
+          nip: string | null
+          principal_name: string | null
+          principal_nip: string | null
+          school_name: string
+          semester: string | null
+          subject: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          academic_year?: string | null
+          created_at?: string
+          education_level?: string | null
+          full_name: string
+          id?: string
+          nip?: string | null
+          principal_name?: string | null
+          principal_nip?: string | null
+          school_name: string
+          semester?: string | null
+          subject?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          academic_year?: string | null
+          created_at?: string
+          education_level?: string | null
+          full_name?: string
+          id?: string
+          nip?: string | null
+          principal_name?: string | null
+          principal_nip?: string | null
+          school_name?: string
+          semester?: string | null
+          subject?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
