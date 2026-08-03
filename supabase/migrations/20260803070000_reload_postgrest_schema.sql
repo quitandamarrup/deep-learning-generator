@@ -1,0 +1,14 @@
+-- The generic "Unable to save profile" fallback (rather than one of the
+-- specific Permission denied / constraint-failed messages) strongly
+-- suggests the Postgrest error code isn't one we've classified. The most
+-- common cause of exactly that symptom, right after a brand-new table is
+-- created by a raw SQL migration, is that PostgREST's schema cache hasn't
+-- picked up the new table/columns yet — every request against it then
+-- fails with something like:
+--   PGRST205: Could not find the table 'public.teacher_profiles' in the
+--   schema cache
+-- even though the table, columns, and RLS policies are all correct.
+--
+-- This forces an immediate reload instead of waiting for PostgREST's
+-- periodic auto-refresh.
+NOTIFY pgrst, 'reload schema';
