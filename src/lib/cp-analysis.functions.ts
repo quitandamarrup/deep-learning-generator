@@ -352,7 +352,7 @@ Ketentuan jumlah minimal per topik: tp 2–4; pertanyaanPemantik 2–3; sintaks 
 Urutkan topik dari prasyarat/dasar ke lanjutan sehingga urutan TP membentuk ATP yang dapat diajarkan. Setiap "kisi" dan setiap "soal" harus merujuk kode TP yang ada, dan setiap materi harus menopang TP topik tersebut.
 Hanya JSON.`;
 
-    const cacheKey = buildCacheKey("cp-analysis", {
+    const cacheKey = buildCacheKey("cp-analysis-v2", {
       jenjang: data.jenjang,
       kelas: data.kelas,
       fase: data.fase,
