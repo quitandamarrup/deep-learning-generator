@@ -1,5 +1,7 @@
 import JSZip from "jszip";
-import { saveAs } from "file-saver";
+import fileSaver from "file-saver";
+
+const { saveAs } = fileSaver;
 import type { DocContextType } from "./admin-docs.functions";
 import type { MasterData } from "./cp-analysis.functions";
 import {
