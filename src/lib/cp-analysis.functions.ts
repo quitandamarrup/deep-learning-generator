@@ -347,8 +347,9 @@ Keluarkan JSON PERSIS dengan bentuk:
   ]
 }
 
-Ketentuan jumlah minimal per topik: tp 2–4; pertanyaanPemantik 2–3; sintaks 4–6; dimensiProfil 2–3; petaKonsep 3–6; uraianMateri 3; pertemuanRinci sebanyak nilai "pertemuan" (aktivitas 1–2 baris per tahap); lkpd.pertanyaan 5; asesmen.diagnostik 5; asesmen.formatif 3; asesmen.sumatif 3; kisi 5–8; soal.pg 5; soal.uraian 3; rubrik 4–6 (campur Pengetahuan/Keterampilan/Sikap); refleksi 3.
-"pertemuan" harus proporsional dengan keluasan materi. Urutkan topik dari dasar ke lanjutan.
+Ketentuan jumlah minimal per topik: tp 2–4; pertanyaanPemantik 2–3; sintaks 4–6 (sesuai sintaks model yang dipilih); dimensiProfil 2–3; petaKonsep 3–6; uraianMateri 3; pertemuanRinci sebanyak nilai "pertemuan" (aktivitas 1–2 baris per tahap); lkpd.pertanyaan 5; asesmen.diagnostik 5; asesmen.formatif 3; asesmen.sumatif 3; kisi 5–8; soal.pg 5; soal.uraian 3; rubrik 4–6 (campur Pengetahuan/Keterampilan/Sikap); refleksi 3.
+"pertemuan" ditentukan dari kompleksitas topik (jumlah TP, kedalaman, kebutuhan praktik/proyek, kompleksitas asesmen) — boleh berbeda antar topik dan tidak boleh angka seragam.
+Urutkan topik dari prasyarat/dasar ke lanjutan sehingga urutan TP membentuk ATP yang dapat diajarkan. Setiap "kisi" dan setiap "soal" harus merujuk kode TP yang ada, dan setiap materi harus menopang TP topik tersebut.
 Hanya JSON.`;
 
     const cacheKey = buildCacheKey("cp-analysis", {
