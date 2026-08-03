@@ -258,13 +258,30 @@ function normalizeTopic(raw: any, i: number, alokasiPerPertemuan: string): Maste
 export const analyzeCP = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => CpAnalysisInput.parse(data))
   .handler(async ({ data }) => {
-    const system = `Anda adalah ahli kurikulum Indonesia (Kurikulum Merdeka / Pembelajaran Mendalam).
+    const system = `Anda adalah ahli kurikulum Indonesia (Kurikulum Merdeka / Pembelajaran Mendalam) yang bertindak sebagai MESIN PENALARAN KURIKULUM.
 Tugas Anda: SEKALI JALAN menganalisis Capaian Pembelajaran (CP) dan menghasilkan MASTER DATA ADMINISTRASI yang lengkap dan konsisten.
 Master data ini akan dipakai untuk menyusun TP, ATP, PROTA, PROSEM, KKTP, Modul Ajar, RPP, LKPD, Materi Ajar, Kisi-kisi, Soal, dan Rubrik TANPA analisis ulang.
 Karena itu semua bagian HARUS saling konsisten (kode TP sama di semua bagian, materi sama, jumlah pertemuan sama).
-Gunakan Bahasa Indonesia formal. Keluarkan HANYA JSON valid tanpa penjelasan dan tanpa markdown fence. Isi setiap field secara padat namun bermakna (kalimat, bukan placeholder).`;
 
-    const prompt = `Analisis CP berikut, bagi menjadi 3–6 materi/topik logis, lalu keluarkan master data.
+PENALARAN INTERNAL (WAJIB, JANGAN DITAMPILKAN DALAM OUTPUT):
+Langkah 1 — Baca CP secara utuh. Identifikasi: domain belajar; kompetensi utama; kompetensi pendukung; dimensi pengetahuan; dimensi keterampilan; dimensi sikap (bila relevan); konteks belajar; hasil belajar yang diharapkan; level taksonomi Bloom; prasyarat kompetensi, pengetahuan, dan keterampilan.
+Langkah 2 — Ukur kompleksitas kurikulum: jumlah kompetensi, kedalaman pemahaman, kebutuhan aktivitas praktik, kompleksitas asesmen, kebutuhan proyek, dan konteks lokal bila disebut dalam CP.
+Langkah 3 — Tentukan jumlah pertemuan yang realistis berdasarkan kompleksitas tersebut. JANGAN memakai angka tetap/seragam; jumlah pertemuan tiap topik boleh berbeda.
+
+ATURAN MUTLAK:
+- Setiap topik HARUS berasal langsung dari CP. Jangan mengarang topik yang tidak ada dasarnya di CP. Jangan memakai nama topik generik ("Pengantar", "Materi 1", "Dasar-dasar").
+- TP: hasil transformasi CP menjadi tujuan yang terukur & teramati — bukan menyalin atau menulis ulang CP. Wajib memuat kata kerja operasional + konten + konteks, dan kriteria keberhasilan (kktp).
+- ATP: urutan TP logis dari sederhana ke kompleks; setiap TP menopang TP berikutnya; prasyarat tidak dilompati; alur harus dapat diajarkan.
+- Materi diturunkan dari TP (bukan asumsi), dipisah faktual/konseptual/prosedural/metakognitif, hanya yang diperlukan untuk mencapai TP, tanpa uraian bergaya buku teks yang berlebihan.
+- Model pembelajaran dipilih sesuai karakter kompetensi. JANGAN selalu Project Based Learning. Pilihan: Inquiry, Discovery Learning, Problem Based Learning, Project Based Learning, Cooperative Learning, Text-Based Learning, Scientific Learning, Deep Learning. Jelaskan di "alasanModel" bagaimana model itu menopang TP.
+- Diferensiasi konkret berbasis kesiapan (pengetahuanAwal), minat (minatBelajar), dan profil belajar (kebutuhanBelajar) — bukan kalimat umum.
+- Asesmen mengukur TP dan sesuai jenis kompetensi: pengetahuan → tes tulis; keterampilan → kinerja/produk/proyek/praktik; sikap → observasi/refleksi/penilaian diri. Jangan memakai satu jenis asesmen untuk semua.
+
+KENDALI MUTU (verifikasi internal sebelum menjawab): setiap topik berasal dari CP; setiap TP berasal dari topik; ATP berasal dari TP; setiap materi menopang TP; setiap asesmen mengukur TP; alokasi pertemuan realistis; tidak ada isi generik.
+
+Gunakan Bahasa Indonesia formal. Keluarkan HANYA JSON valid tanpa penjelasan dan tanpa markdown fence. Isi setiap field secara padat namun bermakna (kalimat, bukan placeholder). Akurasi lebih penting daripada kecepatan.`;
+
+    const prompt = `Lakukan penalaran kurikulum internal atas CP berikut, lalu bagi CP menjadi topik-topik yang benar-benar tersirat di dalam CP (jumlah topik mengikuti isi CP, umumnya 3–6; jangan dipaksakan) dan keluarkan master data.
 
 Data:
 - Jenjang: ${data.jenjang}
@@ -281,11 +298,13 @@ Keluarkan JSON PERSIS dengan bentuk:
   "topics": [
     {
       "no": 1,
-      "materi": "Judul topik",
-      "kompetensi": "Kompetensi utama topik",
+      "materi": "Judul topik spesifik yang tersurat/tersirat dalam CP",
+      "kompetensi": "Kompetensi CP yang dibidik topik ini",
+      "fokusBelajar": "Fokus belajar topik ini (1 kalimat)",
+      "tingkatKesulitan": "Dasar | Menengah | Lanjut",
       "pertemuan": 2,
       "alokasi": "2 x (${data.alokasiPerPertemuan})",
-      "tp": [{"kode":"TP.1.1","rumusan":"...","indikator":"...","kktp":"kriteria ketercapaian","level":"C3"}],
+      "tp": [{"kode":"TP.1.1","rumusan":"kata kerja operasional + konten + konteks","indikator":"...","kktp":"kriteria ketercapaian","level":"C3"}],
       "pemahamanBermakna": "...",
       "pertanyaanPemantik": ["...","..."],
       "model": "Problem Based Learning",
