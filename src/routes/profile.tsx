@@ -85,7 +85,11 @@ function ProfilePage() {
           setIsFirstTime(true);
         }
       })
-      .catch(() => {})
+      .catch((err) => {
+        if (cancelled) return;
+        console.error("[ProfilePage] gagal memuat profil:", err);
+        toast.error(err instanceof Error ? err.message : "Gagal memuat Profil Guru.");
+      })
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
@@ -112,8 +116,8 @@ function ProfilePage() {
       toast.success("Profil Guru tersimpan.");
       navigate({ to: "/" });
     } catch (err) {
-      console.error(err);
-      toast.error("Gagal menyimpan Profil Guru.");
+      console.error("[ProfilePage] gagal menyimpan profil:", err);
+      toast.error(err instanceof Error ? err.message : "Unable to save profile.");
     } finally {
       setSaving(false);
     }
