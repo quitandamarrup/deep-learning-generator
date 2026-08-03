@@ -10,9 +10,11 @@ import {
   WidthType,
   AlignmentType,
 } from "docx";
-import { saveAs } from "file-saver";
+import fileSaver from "file-saver";
 import jsPDF from "jspdf";
 import JSZip from "jszip";
+
+const { saveAs } = fileSaver;
 
 // --- Very small Markdown parser for our AI output (headings/lists/tables/paragraphs) ---
 type Block =

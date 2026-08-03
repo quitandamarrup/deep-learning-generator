@@ -34,6 +34,10 @@ export type MasterActivity = {
 };
 
 export type MasterTopic = CpTopic & {
+  /** Fokus belajar topik (hasil penalaran CP) — internal, tidak mengubah UI. */
+  fokusBelajar: string;
+  /** Tingkat kesulitan topik: Dasar | Menengah | Lanjut. */
+  tingkatKesulitan: string;
   tp: { kode: string; rumusan: string; indikator: string; kktp: string; level: string }[];
   pemahamanBermakna: string;
   pertanyaanPemantik: string[];
