@@ -55,6 +55,9 @@ const ContextSchema = z.object({
   cp: z.string().min(1),
   alokasiPerPertemuan: z.string().min(1),
   info: z.string().optional().default(""),
+  nip: z.string().optional().default(""),
+  principalName: z.string().optional().default(""),
+  principalNip: z.string().optional().default(""),
   topics: z.array(TopicSchema).min(1),
   selectedTopicNo: z.number().optional(),
 });
@@ -95,7 +98,7 @@ Struktur wajib (## heading A–J):
 ## G. TINDAK LANJUT (Remedial, Pengayaan)
 ## H. REFLEKSI (Peserta Didik, Guru)
 ## I. LAMPIRAN
-## J. PENGESAHAN (tabel 2 kolom: Kepala Satuan | Guru ${ctx.penyusun})`;
+## J. PENGESAHAN (tabel 2 kolom: Kepala Satuan ${ctx.principalName || "(nama Kepala Satuan)"}${ctx.principalNip ? ` NIP. ${ctx.principalNip}` : ""} | Guru ${ctx.penyusun}${ctx.nip ? ` NIP. ${ctx.nip}` : ""})`;
     case "TP":
       return `Buat daftar Tujuan Pembelajaran (TP) untuk SETIAP topik dari Analisis CP. Format:
 ## Tujuan Pembelajaran — ${ctx.mapel} ${ctx.kelas}

@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
@@ -21,6 +21,7 @@ import {
   type MasterKurikulum,
 } from "@/lib/master-kurikulum";
 import { loadMasterKurikulum, saveMasterKurikulum } from "@/lib/master-kurikulum.functions";
+import { getTeacherProfile } from "@/lib/teacher-profile.functions";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -62,7 +63,6 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
 import type { User } from "@supabase/supabase-js";
-import { Link } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -88,7 +88,10 @@ export const Route = createFileRoute("/")({
 
 type FormState = {
   penyusun: string;
+  nip: string;
   satuan: string;
+  principalName: string;
+  principalNip: string;
   tahunAjaran: string;
   semester: string;
   jenjang: string;
@@ -102,7 +105,10 @@ type FormState = {
 
 const defaultForm: FormState = {
   penyusun: "",
+  nip: "",
   satuan: "",
+  principalName: "",
+  principalNip: "",
   tahunAjaran: "",
   semester: "Ganjil",
   jenjang: "SD/MI",
@@ -113,6 +119,38 @@ const defaultForm: FormState = {
   cp: "",
   info: "",
 };
+
+/** Field profil guru: sekali diisi, dipakai ulang di setiap sesi (Sprint 3). */
+const PROFILE_FIELDS = [
+  "penyusun",
+  "nip",
+  "satuan",
+  "principalName",
+  "principalNip",
+  "mapel",
+  "jenjang",
+  "semester",
+  "tahunAjaran",
+] as const satisfies readonly (keyof FormState)[];
+
+const GUEST_FORM_STORAGE_KEY = "rpp-creator:guest-form-v1";
+
+function loadGuestForm(): Partial<FormState> | null {
+  try {
+    const raw = localStorage.getItem(GUEST_FORM_STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as Partial<FormState>) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveGuestForm(f: FormState) {
+  try {
+    localStorage.setItem(GUEST_FORM_STORAGE_KEY, JSON.stringify(f));
+  } catch {
+    // localStorage tidak tersedia (mode privat dll.) — abaikan, tidak fatal.
+  }
+}
 
 // Docs where a specific topic is required
 const TOPIC_SCOPED: DocType[] = ["RPP", "MODUL", "MATERI", "LKPD", "ASESMEN", "KISI", "SOAL", "RUBRIK"];
@@ -126,10 +164,15 @@ function Index() {
   const runSaveMK = useServerFn(saveMasterKurikulum);
   const runLoadMK = useServerFn(loadMasterKurikulum);
 
-  const [form, setForm] = useState<FormState>(defaultForm);
+  const runGetProfile = useServerFn(getTeacherProfile);
+  const navigate = useNavigate();
+
+  const [form, setForm] = useState<FormState>(() => ({ ...defaultForm, ...loadGuestForm() }));
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+
+  const [profileFound, setProfileFound] = useState<boolean | null>(null); // null = belum dicek
 
   const [analyzing, setAnalyzing] = useState(false);
   const [topics, setTopics] = useState<CpTopic[] | null>(null);
@@ -159,6 +202,55 @@ function Index() {
     });
     return () => sub.subscription.unsubscribe();
   }, []);
+
+  // Guest/session persistence: setiap perubahan form disimpan ke localStorage,
+  // sehingga data (termasuk CP yang sedang diketik) selamat melewati redirect
+  // login Google dan bisa dipulihkan otomatis — guru tidak perlu mengetik ulang.
+  useEffect(() => {
+    saveGuestForm(form);
+  }, [form]);
+
+  // Setelah login: cek apakah Profil Guru sudah ada.
+  // - Belum ada (login pertama) → jangan buka Dashboard, arahkan ke /profile.
+  // - Sudah ada → isi otomatis field profil pada form (auto-fill), Dashboard
+  //   terbuka normal. Data tamu yang sudah diketik (CP dkk., dipulihkan dari
+  //   localStorage di atas) tidak pernah ditimpa oleh langkah ini.
+  useEffect(() => {
+    if (!user) {
+      setProfileFound(null);
+      return;
+    }
+    let cancelled = false;
+    runGetProfile()
+      .then((r) => {
+        if (cancelled) return;
+        setProfileFound(r.found);
+        if (!r.found) {
+          navigate({ to: "/profile" });
+          return;
+        }
+        const p = r.profile;
+        setForm((f) => ({
+          ...f,
+          penyusun: p.fullName,
+          nip: p.nip,
+          satuan: p.schoolName,
+          principalName: p.principalName,
+          principalNip: p.principalNip,
+          mapel: p.subject || f.mapel,
+          jenjang: p.educationLevel || f.jenjang,
+          semester: p.semester || f.semester,
+          tahunAjaran: p.academicYear || f.tahunAjaran,
+        }));
+      })
+      .catch(() => {
+        if (!cancelled) setProfileFound(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
   // Check admin + access when user or mapel changes
   useEffect(() => {
@@ -207,6 +299,12 @@ function Index() {
   const update = (k: keyof FormState, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
   const requireContext = (needTopic = false): DocContextType | null => {
+    if (profileFound === false) {
+      toast.error("Lengkapi profil Anda terlebih dahulu sebelum membuat dokumen.", {
+        action: { label: "Lengkapi Profil", onClick: () => navigate({ to: "/profile" }) },
+      });
+      return null;
+    }
     const need: (keyof FormState)[] = [
       "penyusun",
       "satuan",
@@ -235,7 +333,10 @@ function Index() {
     }
     return {
       penyusun: form.penyusun,
+      nip: form.nip,
       satuan: form.satuan,
+      principalName: form.principalName,
+      principalNip: form.principalNip,
       tahunAjaran: form.tahunAjaran,
       semester: form.semester,
       jenjang: form.jenjang,
@@ -254,7 +355,10 @@ function Index() {
   const persistMasterKurikulum = async (data: MasterData, ts: CpTopic[]) => {
     const ctx: DocContextType = {
       penyusun: form.penyusun,
+      nip: form.nip,
       satuan: form.satuan,
+      principalName: form.principalName,
+      principalNip: form.principalNip,
       tahunAjaran: form.tahunAjaran,
       semester: form.semester,
       jenjang: form.jenjang,
@@ -579,6 +683,17 @@ function Index() {
               </p>
             </div>
             <div className="shrink-0 flex items-center gap-2">
+              {user && (
+                <Link to="/profile">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="bg-white/10 text-white hover:bg-white/20 border-0"
+                  >
+                    👤 Profil
+                  </Button>
+                </Link>
+              )}
               {isAdmin && (
                 <Link to="/admin/tokens">
                   <Button size="sm" variant="secondary" className="bg-white/10 text-white hover:bg-white/20 border-0">

@@ -13,7 +13,10 @@ const ol = (arr: string[] | undefined, fallback = "-") =>
   arr && arr.length ? arr.map((x, i) => `${i + 1}. ${x}`).join("\n") : `1. ${fallback}`;
 
 const cell = (v: string | number | undefined) =>
-  String(v ?? "").replace(/\|/g, "\\|").replace(/\n+/g, " ").trim() || "-";
+  String(v ?? "")
+    .replace(/\|/g, "\\|")
+    .replace(/\n+/g, " ")
+    .trim() || "-";
 
 function table(headers: string[], rows: (string | number)[][]) {
   const head = `| ${headers.join(" | ")} |\n| ${headers.map(() => "---").join(" | ")} |`;
@@ -50,15 +53,25 @@ function identitas(ctx: DocContextType, t?: MasterTopic) {
   }
   rows.push(["Alokasi JP per Pertemuan", ctx.alokasiPerPertemuan]);
   if (ctx.info) rows.push(["Informasi Tambahan", ctx.info]);
-  return table(["Komponen", "Keterangan"], rows.map(([a, b]) => [a, b]));
+  return table(
+    ["Komponen", "Keterangan"],
+    rows.map(([a, b]) => [a, b]),
+  );
 }
 
 function pengesahan(ctx: DocContextType) {
+  const principalLine = ctx.principalName
+    ? `(${ctx.principalName})<br>NIP. ${ctx.principalNip || "......................."}`
+    : "(...........................)<br>NIP. .......................";
+  const guruLine = `(${ctx.penyusun})<br>NIP. ${ctx.nip || "......................."}`;
   return `## J. PENGESAHAN
 
 ${table(
-  ["Mengetahui,<br>Kepala Satuan Pendidikan", `${ctx.satuan}, ......................<br>Guru Mata Pelajaran`],
-  [["<br><br>(...........................)<br>NIP. .......................", `<br><br>(${ctx.penyusun})<br>NIP. .......................`]],
+  [
+    "Mengetahui,<br>Kepala Satuan Pendidikan",
+    `${ctx.satuan}, ......................<br>Guru Mata Pelajaran`,
+  ],
+  [[`<br><br>${principalLine}`, `<br><br>${guruLine}`]],
 )}`;
 }
 
@@ -73,7 +86,10 @@ function buildTP(m: MasterData, ctx: DocContextType) {
     .map(
       (t) =>
         `### Topik ${t.no}: ${t.materi}\n\n${t.tp
-          .map((tp) => `${tp.kode}. ${tp.rumusan}${tp.indikator ? `\n   - Indikator: ${tp.indikator}` : ""}`)
+          .map(
+            (tp) =>
+              `${tp.kode}. ${tp.rumusan}${tp.indikator ? `\n   - Indikator: ${tp.indikator}` : ""}`,
+          )
           .join("\n")}`,
     )
     .join("\n\n");
@@ -237,13 +253,22 @@ ${pengalamanBelajar(t)}
 ## E. ASESMEN PEMBELAJARAN
 
 ### 1. Asesmen Awal/Diagnostik
-${table(["No", "Pertanyaan", "Kunci/Indikator"], t.asesmen.diagnostik.map((d, i) => [i + 1, d.soal, d.kunci]))}
+${table(
+  ["No", "Pertanyaan", "Kunci/Indikator"],
+  t.asesmen.diagnostik.map((d, i) => [i + 1, d.soal, d.kunci]),
+)}
 
 ### 2. Asesmen Proses/Formatif
-${table(["Aspek", "Indikator", "Teknik", "Instrumen"], t.asesmen.formatif.map((d) => [d.aspek, d.indikator, d.teknik, d.instrumen]))}
+${table(
+  ["Aspek", "Indikator", "Teknik", "Instrumen"],
+  t.asesmen.formatif.map((d) => [d.aspek, d.indikator, d.teknik, d.instrumen]),
+)}
 
 ### 3. Asesmen Akhir/Sumatif
-${table(["No", "Soal", "Kunci", "Skor"], t.asesmen.sumatif.map((d, i) => [i + 1, d.soal, d.kunci, d.skor]))}
+${table(
+  ["No", "Soal", "Kunci", "Skor"],
+  t.asesmen.sumatif.map((d, i) => [i + 1, d.soal, d.kunci, d.skor]),
+)}
 
 ## F. RUBRIK PENILAIAN
 
@@ -320,7 +345,10 @@ ${pengalamanBelajar(t)}
 - Formatif: observasi & unjuk kerja
 - Sumatif: ${t.asesmen.sumatif.length} soal
 
-${table(["No", "Soal Sumatif", "Kunci", "Skor"], t.asesmen.sumatif.map((d, i) => [i + 1, d.soal, d.kunci, d.skor]))}
+${table(
+  ["No", "Soal Sumatif", "Kunci", "Skor"],
+  t.asesmen.sumatif.map((d, i) => [i + 1, d.soal, d.kunci, d.skor]),
+)}
 
 ### Pengayaan dan Remedial
 - Pengayaan: ${t.pengayaan || "-"}
@@ -342,7 +370,10 @@ ${ol(t.lkpd.langkah)}
 ${li(t.uraianMateri.map((u) => `${u.judul}: ${u.isi}`))}
 
 ### Glosarium
-${table(["Istilah", "Arti"], t.glosarium.map((g) => [g.istilah, g.arti]))}
+${table(
+  ["Istilah", "Arti"],
+  t.glosarium.map((g) => [g.istilah, g.arti]),
+)}
 
 ### Daftar Pustaka
 ${li(t.daftarPustaka)}`;
@@ -373,7 +404,10 @@ ${t.rangkuman || "-"}
 ${li(t.refleksiSiswa)}
 
 ## Glosarium
-${table(["Istilah", "Arti"], t.glosarium.map((g) => [g.istilah, g.arti]))}
+${table(
+  ["Istilah", "Arti"],
+  t.glosarium.map((g) => [g.istilah, g.arti]),
+)}
 
 ## Daftar Pustaka
 ${li(t.daftarPustaka)}`;
@@ -384,13 +418,16 @@ function buildLKPD(m: MasterData, ctx: DocContextType) {
   return `# LKPD — ${t.materi}
 
 ## Identitas
-${table(["Komponen", "Isian"], [
-  ["Nama", "................................"],
-  ["Kelas", ctx.kelas],
-  ["Kelompok", "................................"],
-  ["Mata Pelajaran", ctx.mapel],
-  ["Hari/Tanggal", "................................"],
-])}
+${table(
+  ["Komponen", "Isian"],
+  [
+    ["Nama", "................................"],
+    ["Kelas", ctx.kelas],
+    ["Kelompok", "................................"],
+    ["Mata Pelajaran", ctx.mapel],
+    ["Hari/Tanggal", "................................"],
+  ],
+)}
 
 ## Tujuan Pembelajaran
 ${t.tp.map((tp) => `- ${tp.kode}: ${tp.rumusan}`).join("\n")}
@@ -426,13 +463,22 @@ function buildASESMEN(m: MasterData, ctx: DocContextType) {
 ${identitas(ctx, t)}
 
 ## Asesmen Diagnostik
-${table(["No", "Pertanyaan", "Kunci/Indikator"], t.asesmen.diagnostik.map((d, i) => [i + 1, d.soal, d.kunci]))}
+${table(
+  ["No", "Pertanyaan", "Kunci/Indikator"],
+  t.asesmen.diagnostik.map((d, i) => [i + 1, d.soal, d.kunci]),
+)}
 
 ## Asesmen Formatif
-${table(["Aspek", "Indikator", "Teknik", "Instrumen"], t.asesmen.formatif.map((d) => [d.aspek, d.indikator, d.teknik, d.instrumen]))}
+${table(
+  ["Aspek", "Indikator", "Teknik", "Instrumen"],
+  t.asesmen.formatif.map((d) => [d.aspek, d.indikator, d.teknik, d.instrumen]),
+)}
 
 ## Asesmen Sumatif
-${table(["No", "Soal", "Kunci Jawaban", "Skor"], t.asesmen.sumatif.map((d, i) => [i + 1, d.soal, d.kunci, d.skor]))}
+${table(
+  ["No", "Soal", "Kunci Jawaban", "Skor"],
+  t.asesmen.sumatif.map((d, i) => [i + 1, d.soal, d.kunci, d.skor]),
+)}
 
 **Total skor: ${total}. Nilai akhir = (skor perolehan / ${total}) × 100.**`;
 }
@@ -444,8 +490,26 @@ function buildKISI(m: MasterData, ctx: DocContextType) {
 ${identitas(ctx, t)}
 
 ${table(
-  ["No", "Kode TP", "Indikator Soal", "Materi", "Level Kognitif", "Bentuk Soal", "No Soal", "Bobot"],
-  t.kisi.map((k, i) => [i + 1, k.kodeTp, k.indikator, k.materi, k.level, k.bentuk, k.nomor, k.bobot]),
+  [
+    "No",
+    "Kode TP",
+    "Indikator Soal",
+    "Materi",
+    "Level Kognitif",
+    "Bentuk Soal",
+    "No Soal",
+    "Bobot",
+  ],
+  t.kisi.map((k, i) => [
+    i + 1,
+    k.kodeTp,
+    k.indikator,
+    k.materi,
+    k.level,
+    k.bentuk,
+    k.nomor,
+    k.bobot,
+  ]),
 )}`;
 }
 
@@ -477,10 +541,16 @@ ${ur || "-"}
 ## Kunci Jawaban dan Pedoman Penskoran
 
 ### Pilihan Ganda
-${table(["No", "Kunci", "Skor"], t.soal.pg.map((p) => [p.no, p.kunci, 1]))}
+${table(
+  ["No", "Kunci", "Skor"],
+  t.soal.pg.map((p) => [p.no, p.kunci, 1]),
+)}
 
 ### Uraian
-${table(["No", "Kunci/Rubrik Jawaban", "Skor"], t.soal.uraian.map((p) => [p.no, p.kunci, p.skor]))}
+${table(
+  ["No", "Kunci/Rubrik Jawaban", "Skor"],
+  t.soal.uraian.map((p) => [p.no, p.kunci, p.skor]),
+)}
 
 **Total skor: ${totalPg + totalUr}. Nilai akhir = (skor perolehan / ${totalPg + totalUr || 1}) × 100.**`;
 }
@@ -493,7 +563,9 @@ function buildRUBRIK(m: MasterData, ctx: DocContextType) {
       (j) =>
         `## Rubrik ${j}\n\n${table(
           ["Aspek", "Sangat Baik (4)", "Baik (3)", "Cukup (2)", "Perlu Bimbingan (1)"],
-          t.rubrik.filter((r) => (r.jenis || "Penilaian") === j).map((r) => [r.aspek, r.sangatBaik, r.baik, r.cukup, r.perluBimbingan]),
+          t.rubrik
+            .filter((r) => (r.jenis || "Penilaian") === j)
+            .map((r) => [r.aspek, r.sangatBaik, r.baik, r.cukup, r.perluBimbingan]),
         )}`,
     )
     .join("\n\n");
@@ -506,12 +578,15 @@ ${body}
 ## Pedoman Penskoran
 Nilai akhir = (jumlah skor perolehan / (4 × jumlah aspek)) × 100.
 
-${table(["Rentang Nilai", "Predikat"], [
-  ["86 – 100", "Sangat Baik"],
-  ["71 – 85", "Baik"],
-  ["56 – 70", "Cukup"],
-  ["< 56", "Perlu Bimbingan"],
-])}`;
+${table(
+  ["Rentang Nilai", "Predikat"],
+  [
+    ["86 – 100", "Sangat Baik"],
+    ["71 – 85", "Baik"],
+    ["56 – 70", "Cukup"],
+    ["< 56", "Perlu Bimbingan"],
+  ],
+)}`;
 }
 
 const BUILDERS: Record<DocType, (m: MasterData, ctx: DocContextType) => string> = {
