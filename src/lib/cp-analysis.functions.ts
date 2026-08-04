@@ -11,7 +11,13 @@ export type CpAnalysisInputType = {
   alokasiPerPertemuan: string;
 };
 
-export type CpTopic = { no: number; materi: string; kompetensi: string; pertemuan: number; alokasi: string };
+export type CpTopic = {
+  no: number;
+  materi: string;
+  kompetensi: string;
+  pertemuan: number;
+  alokasi: string;
+};
 export type MasterActivity = { guru: string; siswa: string; media: string; alokasi: string };
 
 export type MasterTopic = CpTopic & {
@@ -39,16 +45,41 @@ export type MasterTopic = CpTopic & {
   uraianMateri: { judul: string; isi: string }[];
   petaKonsep: string[];
   rangkuman: string;
-  pertemuanRinci: { pertemuan: number; awal: string[]; memahami: MasterActivity[]; mengaplikasi: MasterActivity[]; merefleksi: MasterActivity[]; penutup: string[] }[];
+  pertemuanRinci: {
+    pertemuan: number;
+    awal: string[];
+    memahami: MasterActivity[];
+    mengaplikasi: MasterActivity[];
+    merefleksi: MasterActivity[];
+    penutup: string[];
+  }[];
   lkpd: { alatBahan: string[]; langkah: string[]; pertanyaan: string[] };
   asesmen: {
     diagnostik: { soal: string; kunci: string }[];
     formatif: { aspek: string; indikator: string; teknik: string; instrumen: string }[];
     sumatif: { soal: string; kunci: string; skor: number }[];
   };
-  kisi: { kodeTp: string; indikator: string; materi: string; level: string; bentuk: string; nomor: string; bobot: string }[];
-  soal: { pg: { no: number; soal: string; opsi: string[]; kunci: string }[]; uraian: { no: number; soal: string; kunci: string; skor: number }[] };
-  rubrik: { jenis: string; aspek: string; sangatBaik: string; baik: string; cukup: string; perluBimbingan: string }[];
+  kisi: {
+    kodeTp: string;
+    indikator: string;
+    materi: string;
+    level: string;
+    bentuk: string;
+    nomor: string;
+    bobot: string;
+  }[];
+  soal: {
+    pg: { no: number; soal: string; opsi: string[]; kunci: string }[];
+    uraian: { no: number; soal: string; kunci: string; skor: number }[];
+  };
+  rubrik: {
+    jenis: string;
+    aspek: string;
+    sangatBaik: string;
+    baik: string;
+    cukup: string;
+    perluBimbingan: string;
+  }[];
   remedial: string;
   pengayaan: string;
   refleksiGuru: string[];
@@ -64,15 +95,19 @@ export type MasterData = CpAnalysisInputType & {
 };
 
 export const analyzeCP = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) => z.object({
-    jenjang: z.string().trim().min(1),
-    kelas: z.string().trim().min(1),
-    fase: z.string().trim().min(1),
-    mapel: z.string().trim().min(1),
-    semester: z.string().trim().min(1),
-    cp: z.string().trim().min(1),
-    alokasiPerPertemuan: z.string().trim().min(1),
-  }).parse(data))
+  .inputValidator((data: unknown) =>
+    z
+      .object({
+        jenjang: z.string().trim().min(1),
+        kelas: z.string().trim().min(1),
+        fase: z.string().trim().min(1),
+        mapel: z.string().trim().min(1),
+        semester: z.string().trim().min(1),
+        cp: z.string().trim().min(1),
+        alokasiPerPertemuan: z.string().trim().min(1),
+      })
+      .parse(data),
+  )
   .handler(async ({ data }) => {
     const { executeCpAnalysis } = await import("./cp-analysis.server");
     return executeCpAnalysis(data);
