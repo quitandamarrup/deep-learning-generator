@@ -6,8 +6,8 @@ import {
   buildMasterKurikulum,
   unitOf,
   type MasterKurikulum,
+  type MkUnit,
 } from "./master-kurikulum";
-
 
 /**
  * TEMPLATE ENGINE MODUL AJAR
@@ -60,7 +60,10 @@ function sliceBlock(xml: string, openToken: string, closeToken: string) {
 /* ------------------- pemetaan dari MASTER_KURIKULUM ------------------- */
 
 const j = (arr: (string | undefined)[] | undefined, sep = "; ") =>
-  (arr ?? []).map((x) => (x ?? "").trim()).filter(Boolean).join(sep);
+  (arr ?? [])
+    .map((x) => (x ?? "").trim())
+    .filter(Boolean)
+    .join(sep);
 
 /** Seluruh nilai template diambil dari MASTER_KURIKULUM — tanpa memanggil AI. */
 export function buildModulAjarValuesFromMK(mk: MasterKurikulum, topicNo?: number) {
@@ -116,8 +119,10 @@ export function buildModulAjarValuesFromMK(mk: MasterKurikulum, topicNo?: number
     RINGKASAN_ALUR: u?.ringkasanModul.alur ?? "",
     RINGKASAN_ASESMEN: u?.ringkasanModul.asesmen ?? "",
     LAMP1_KET: u?.jumlahPertemuan ? "Digunakan pada tahap Mengaplikasi pertemuan 1." : "",
-    LAMP2_KET: (u?.jumlahPertemuan ?? 0) >= 2 ? "Digunakan pada tahap Mengaplikasi pertemuan 2." : "",
-    LAMP3_KET: (u?.jumlahPertemuan ?? 0) >= 3 ? "Digunakan pada tahap Mengaplikasi pertemuan 3." : "",
+    LAMP2_KET:
+      (u?.jumlahPertemuan ?? 0) >= 2 ? "Digunakan pada tahap Mengaplikasi pertemuan 2." : "",
+    LAMP3_KET:
+      (u?.jumlahPertemuan ?? 0) >= 3 ? "Digunakan pada tahap Mengaplikasi pertemuan 3." : "",
     LAMP5_KET: j([...(u?.media ?? []), ...(u?.sumberBelajar ?? [])]),
     LAMP6_KET: j(u?.refleksi.siswa),
     LKPD_PERTEMUAN: "1",
@@ -169,13 +174,22 @@ export function buildModulAjarValuesFromMK(mk: MasterKurikulum, topicNo?: number
       P_PEMANTIK: p?.pemantik ?? "",
       P_PENDAHULUAN_1: p?.awal?.[0] ?? "",
       P_PENDAHULUAN_2: j(p?.awal?.slice(1)),
-      P_MEMAHAMI_AKT: j((p?.memahami ?? []).map((a) => `Guru: ${a.guru} Murid: ${a.siswa}`), " "),
+      P_MEMAHAMI_AKT: j(
+        (p?.memahami ?? []).map((a) => `Guru: ${a.guru} Murid: ${a.siswa}`),
+        " ",
+      ),
       P_MEMAHAMI_PRODUK: j((p?.memahami ?? []).map((a) => a.media)),
       P_MEMAHAMI_ASESMEN: u?.asesmenFormatif?.[0]?.teknik ?? "",
-      P_MENGAPLIKASI_AKT: j((p?.mengaplikasi ?? []).map((a) => `Guru: ${a.guru} Murid: ${a.siswa}`), " "),
+      P_MENGAPLIKASI_AKT: j(
+        (p?.mengaplikasi ?? []).map((a) => `Guru: ${a.guru} Murid: ${a.siswa}`),
+        " ",
+      ),
       P_MENGAPLIKASI_PRODUK: j((p?.mengaplikasi ?? []).map((a) => a.media)),
       P_MENGAPLIKASI_ASESMEN: u?.asesmenFormatif?.[1]?.teknik ?? "",
-      P_MEREFLEKSI_AKT: j((p?.merefleksi ?? []).map((a) => `Guru: ${a.guru} Murid: ${a.siswa}`), " "),
+      P_MEREFLEKSI_AKT: j(
+        (p?.merefleksi ?? []).map((a) => `Guru: ${a.guru} Murid: ${a.siswa}`),
+        " ",
+      ),
       P_MEREFLEKSI_PRODUK: j((p?.merefleksi ?? []).map((a) => a.media)),
       P_MEREFLEKSI_ASESMEN: u?.asesmenFormatif?.[2]?.teknik ?? "",
       P_PENUTUP_1: p?.penutup?.[0] ?? "",
@@ -191,14 +205,46 @@ export function buildModulAjarValues(master: MasterData, ctx: DocContextType) {
   return buildModulAjarValuesFromMK(buildMasterKurikulum(master, ctx), ctx.selectedTopicNo);
 }
 
-
 /* ------------------------- pengisian template ------------------------- */
+
+/**
+ * Validasi ringan sebelum ekspor: memastikan field MASTER_KURIKULUM yang
+ * dipakai template Modul Ajar tidak kosong. Tidak memanggil AI lagi (sesuai
+ * arsitektur "AI hanya dipanggil saat Analisis CP") — hanya mengecek data
+ * yang sudah ada. Kalau ada yang kosong, kemungkinan besar hasil Analisis CP
+ * untuk topik ini kurang lengkap; lebih baik gagal jelas daripada
+ * mengekspor DOCX dengan bagian kosong secara diam-diam.
+ */
+function findEmptyModulAjarFields(u: MkUnit): string[] {
+  const empty: string[] = [];
+  if (!u.profilLulusan.length) empty.push("Dimensi Profil Lulusan");
+  if (!u.praktikPedagogis.sintaks.length) empty.push("Sintaks Pembelajaran");
+  if (!u.lingkunganPembelajaran.trim()) empty.push("Lingkungan Pembelajaran");
+  if (!u.diferensiasi.trim()) empty.push("Diferensiasi");
+  if (!u.asesmenAwal.length) empty.push("Asesmen Diagnostik");
+  if (!u.asesmenFormatif.length) empty.push("Asesmen Formatif");
+  if (!u.asesmenSumatif.length) empty.push("Asesmen Sumatif");
+  if (!u.tindakLanjut.remedial.trim()) empty.push("Program Remedial");
+  if (!u.tindakLanjut.pengayaan.trim()) empty.push("Program Pengayaan");
+  if (!u.refleksi.siswa.length) empty.push("Refleksi Peserta Didik");
+  return empty;
+}
 
 /** Isi Template Master langsung dari MASTER_KURIKULUM (tanpa AI). */
 export async function buildModulAjarDocxBlobFromMK(
   mk: MasterKurikulum,
   topicNo?: number,
 ): Promise<Blob> {
+  const unit = unitOf(mk, topicNo);
+  if (unit) {
+    const empty = findEmptyModulAjarFields(unit);
+    if (empty.length > 0) {
+      throw new Error(
+        `Bagian berikut masih kosong pada hasil Analisis CP untuk topik ini: ${empty.join(", ")}. Jalankan ulang Analisis CP sebelum mengekspor Modul Ajar.`,
+      );
+    }
+  }
+
   const res = await fetch(MODUL_AJAR_TEMPLATE_URL);
   if (!res.ok) throw new Error("Template Master Modul Ajar tidak ditemukan.");
   const zip = await JSZip.loadAsync(await res.arrayBuffer());
@@ -208,11 +254,12 @@ export async function buildModulAjarDocxBlobFromMK(
 
   const { values, meetings } = buildModulAjarValuesFromMK(mk, topicNo);
 
-
   const block = sliceBlock(xml, "{{#PERTEMUAN}}", "{{/PERTEMUAN}}");
   if (block) {
     const rendered = meetings
-      .map((m) => applyValues(block.block.replace("{{#PERTEMUAN}}", "").replace("{{/PERTEMUAN}}", ""), m))
+      .map((m) =>
+        applyValues(block.block.replace("{{#PERTEMUAN}}", "").replace("{{/PERTEMUAN}}", ""), m),
+      )
       .join("");
     xml = xml.slice(0, block.start) + rendered + xml.slice(block.end);
   }
@@ -230,7 +277,11 @@ export function buildModulAjarDocxBlob(master: MasterData, ctx: DocContextType) 
   return buildModulAjarDocxBlobFromMK(buildMasterKurikulum(master, ctx), ctx.selectedTopicNo);
 }
 
-export async function downloadModulAjarDocx(filename: string, master: MasterData, ctx: DocContextType) {
+export async function downloadModulAjarDocx(
+  filename: string,
+  master: MasterData,
+  ctx: DocContextType,
+) {
   const blob = await buildModulAjarDocxBlob(master, ctx);
   saveAs(blob, filename.endsWith(".docx") ? filename : `${filename}.docx`);
 }

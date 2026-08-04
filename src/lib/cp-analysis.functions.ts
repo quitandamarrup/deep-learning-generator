@@ -323,6 +323,20 @@ Keluarkan JSON PERSIS dengan bentuk:
 }
 
 Ketentuan jumlah minimal per topik: tp 2–4; pertanyaanPemantik 2–3; sintaks 4–6; dimensiProfil 2–3; petaKonsep 3–6; uraianMateri 3; pertemuanRinci sebanyak nilai "pertemuan" (aktivitas 1–2 baris per tahap); lkpd.pertanyaan 5; asesmen.diagnostik 5; asesmen.formatif 3; asesmen.sumatif 3; kisi 5–8; soal.pg 5; soal.uraian 3; rubrik 4–6 (campur Pengetahuan/Keterampilan/Sikap); refleksi 3.
+
+Ketentuan kualitas tiap field (jangan gunakan kalimat generik/template, semua harus diturunkan dari CP/kompetensi/topik ini secara spesifik):
+- dimensiProfil: pilih HANYA dimensi yang benar-benar relevan dengan kompetensi, mapel, fase, dan aktivitas pembelajaran topik ini (2-3 dimensi, tidak perlu selalu sama/lengkap semua dimensi). "penerapan" wajib menjelaskan secara singkat MENGAPA dimensi itu muncul di topik ini, bukan definisi umum dimensi tersebut.
+- lintasDisiplin: sebutkan mata pelajaran/bidang lain yang secara alami mendukung CP topik ini (mis. Bahasa Inggris → TIK/ICT, Kewarganegaraan, Sains, Seni), lengkap dengan bagaimana keterkaitannya. Jangan sebut bidang yang tidak relevan.
+- model & sintaks: sintaks HARUS mengikuti tahapan asli dari model pembelajaran yang dipilih (mis. Problem Based Learning: orientasi masalah → organisasi belajar → penyelidikan individu/kelompok → pengembangan & penyajian hasil → analisis & evaluasi; Discovery Learning, Inquiry, PJBL, dan model Pembelajaran Mendalam lain punya tahapan berbeda). Jangan gunakan sintaks generik yang sama untuk setiap topik — pilih model yang paling cocok dengan karakter materi topik ini dan tuliskan sintaks sesuai model tersebut.
+- kemitraan, lingkungan, digital: hanya rekomendasikan yang benar-benar mendukung pencapaian TP topik ini (mis. kemitraan: orang tua, perpustakaan, industri, komunitas, guru lain, native speaker, komunitas digital — bukan semua sekaligus; digital: sebutkan alat spesifik seperti Google Docs/Canva/Quizizz/Google Classroom/Padlet dan kaitkan dengan aktivitas mana yang memakainya). Sertakan alasan singkat pemilihannya.
+- asesmen.diagnostik: setiap "soal" mengukur pengetahuan prasyarat spesifik untuk topik ini (bukan soal umum lintas topik); "kunci" memuat juga kriteria keberhasilan singkat, bukan hanya jawaban.
+- asesmen.formatif: variasikan teknik antar item (observasi, unjuk kerja, tes lisan, jurnal, dsb.), masing-masing selaras dengan salah satu TP topik ini — jangan ulangi teknik yang sama di semua item.
+- asesmen.sumatif: soal harus mencakup seluruh TP topik ini (bukan hanya sebagian), "kunci" memuat pedoman penskoran ringkas.
+- remedial: uraikan strategi tindak lanjut berbeda untuk aspek pengetahuan, keterampilan, dan sikap (bukan satu kalimat generik "mengulang materi"), sertakan bentuk pembelajaran lanjutannya.
+- pengayaan: rekomendasikan aktivitas bermakna (proyek, riset mini, presentasi, produk digital, kegiatan komunitas) yang relevan dengan topik — bukan sekadar "soal lebih sulit".
+- refleksiGuru: pertanyaan reflektif untuk guru tentang proses pembelajaran, keterlibatan murid, ketercapaian TP, dan perbaikan ke depan pada topik ini.
+- refleksiSiswa: pertanyaan reflektif untuk murid tentang pemahaman, strategi belajar, tantangan, motivasi, dan rencana perbaikan pada topik ini.
+Semua isi field harus saling terhubung: CP → topik/kompetensi → TP → ATP → materi → aktivitas → asesmen → refleksi. Jangan mengulang kalimat yang sama antar field atau antar topik.
 "pertemuan" harus proporsional dengan keluasan materi. Urutkan topik dari dasar ke lanjutan.
 Hanya JSON.`;
 
