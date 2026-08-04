@@ -62,7 +62,19 @@ function normalizeTopic(raw: RawTopic, index: number, allocation: string): Maste
   const meetings = Math.max(1, Math.round(Number(raw.pertemuan) || 1));
   const materials = (raw.materiInti ?? {}) as Record<string, unknown>;
   const model = (raw.model ?? {}) as Record<string, unknown>;
-  const assessments = array<Record<string, unknown>>(raw.asesmen);
+  const tpCodes = new Set(orderedTp.map((item) => item.kode));
+  const assessments = array<Record<string, unknown>>(raw.asesmen).filter((row) =>
+    array<unknown>(row.tpCodes).some((code) => tpCodes.has(text(code))),
+  );
+
+  if (
+    !text(materials.faktual) &&
+    !text(materials.konseptual) &&
+    !text(materials.prosedural) &&
+    !text(materials.metakognitif)
+  ) {
+    return undefined;
+  }
 
   return {
     no, materi, kompetensi, fokusBelajar, pertemuan: meetings,
