@@ -123,7 +123,7 @@ function extractJson(text: string): string {
 }
 
 const S = (v: unknown, fb = "") => (v === undefined || v === null ? fb : String(v));
-const A = <T,>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : []);
+const A = <T>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : []);
 
 function normalizeTopic(raw: any, i: number, alokasiPerPertemuan: string): MasterTopic {
   const pertemuan = Math.max(1, parseInt(S(raw?.pertemuan, "1"), 10) || 1);
@@ -142,7 +142,9 @@ function normalizeTopic(raw: any, i: number, alokasiPerPertemuan: string): Maste
     kompetensi: S(raw?.kompetensi),
     pertemuan,
     alokasi: S(raw?.alokasi, `${pertemuan} x (${alokasiPerPertemuan})`),
-    tp: tp.length ? tp : [{ kode: `TP.${no}.1`, rumusan: S(raw?.kompetensi), indikator: "", kktp: "", level: "C3" }],
+    tp: tp.length
+      ? tp
+      : [{ kode: `TP.${no}.1`, rumusan: S(raw?.kompetensi), indikator: "", kktp: "", level: "C3" }],
     pemahamanBermakna: S(raw?.pemahamanBermakna),
     pertanyaanPemantik: A<string>(raw?.pertanyaanPemantik).map((x) => S(x)),
     model: S(raw?.model, "Problem Based Learning"),
@@ -196,7 +198,10 @@ function normalizeTopic(raw: any, i: number, alokasiPerPertemuan: string): Maste
       pertanyaan: A<string>(raw?.lkpd?.pertanyaan).map((x) => S(x)),
     },
     asesmen: {
-      diagnostik: A<any>(raw?.asesmen?.diagnostik).map((d) => ({ soal: S(d?.soal), kunci: S(d?.kunci) })),
+      diagnostik: A<any>(raw?.asesmen?.diagnostik).map((d) => ({
+        soal: S(d?.soal),
+        kunci: S(d?.kunci),
+      })),
       formatif: A<any>(raw?.asesmen?.formatif).map((d) => ({
         aspek: S(d?.aspek),
         indikator: S(d?.indikator),
@@ -249,86 +254,23 @@ function normalizeTopic(raw: any, i: number, alokasiPerPertemuan: string): Maste
   };
 }
 
-export const analyzeCP = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) => CpAnalysisInput.parse(data))
-  .handler(async ({ data }) => {
-    const system = `Anda adalah ahli kurikulum Indonesia (Kurikulum Merdeka / Pembelajaran Mendalam).
-Tugas Anda: SEKALI JALAN menganalisis Capaian Pembelajaran (CP) dan menghasilkan MASTER DATA ADMINISTRASI yang lengkap dan konsisten.
-Master data ini akan dipakai untuk menyusun TP, ATP, PROTA, PROSEM, KKTP, Modul Ajar, RPP, LKPD, Materi Ajar, Kisi-kisi, Soal, dan Rubrik TANPA analisis ulang.
-Karena itu semua bagian HARUS saling konsisten (kode TP sama di semua bagian, materi sama, jumlah pertemuan sama).
+// --- Static instruction blocks, extracted to module-level constants so they ---
+// --- are built once per process instead of re-concatenated every request.  ---
+
+const SYSTEM_PROMPT = `Anda adalah ahli kurikulum Indonesia (Kurikulum Merdeka / Pembelajaran Mendalam).
+Tugas Anda: menganalisis Capaian Pembelajaran (CP) dan menghasilkan bagian dari MASTER DATA ADMINISTRASI secara bertahap.
+Semua tahap HARUS saling konsisten (kode TP sama di semua bagian, materi sama, jumlah pertemuan sama).
 Gunakan Bahasa Indonesia formal. Keluarkan HANYA JSON valid tanpa penjelasan dan tanpa markdown fence. Isi setiap field secara padat namun bermakna (kalimat, bukan placeholder).`;
 
-    const prompt = `Analisis CP berikut, bagi menjadi 3–6 materi/topik logis, lalu keluarkan master data.
-
-Data:
-- Jenjang: ${data.jenjang}
-- Kelas: ${data.kelas}
-- Fase: ${data.fase}
-- Mata Pelajaran: ${data.mapel}
-- Semester: ${data.semester}
-- Alokasi JP per pertemuan: ${data.alokasiPerPertemuan}
-- Capaian Pembelajaran:
-${data.cp}
-
-Keluarkan JSON PERSIS dengan bentuk:
-{
-  "topics": [
-    {
-      "no": 1,
-      "materi": "Judul topik",
-      "kompetensi": "Kompetensi utama topik",
-      "pertemuan": 2,
-      "alokasi": "2 x (${data.alokasiPerPertemuan})",
-      "tp": [{"kode":"TP.1.1","rumusan":"...","indikator":"...","kktp":"kriteria ketercapaian","level":"C3"}],
-      "pemahamanBermakna": "...",
-      "pertanyaanPemantik": ["...","..."],
-      "model": "Problem Based Learning",
-      "alasanModel": "...",
-      "sintaks": ["Sintaks 1","..."],
-      "metode": "Diskusi, penugasan, presentasi",
-      "lintasDisiplin": "...",
-      "dimensiProfil": [{"dimensi":"Bernalar Kritis","penerapan":"..."}],
-      "materiFaktual": "...", "materiKonseptual": "...", "materiProsedural": "...", "materiMetakognitif": "...",
-      "pengetahuanAwal": "...", "minatBelajar": "...", "kebutuhanBelajar": "...",
-      "kemitraan": "...", "lingkungan": "...", "digital": "...",
-      "petaKonsep": ["Konsep utama > sub konsep","..."],
-      "uraianMateri": [{"judul":"Sub-bab","isi":"2-4 kalimat penjelasan mendalam disertai contoh"}],
-      "rangkuman": "...",
-      "pertemuanRinci": [
-        {"pertemuan":1,
-         "awal":["Pembukaan & doa (mindful) ...","Apersepsi ...","Penyampaian tujuan ..."],
-         "memahami":[{"guru":"...","siswa":"...","media":"...","alokasi":"15 menit"}],
-         "mengaplikasi":[{"guru":"...","siswa":"...","media":"...","alokasi":"25 menit"}],
-         "merefleksi":[{"guru":"...","siswa":"...","media":"...","alokasi":"10 menit"}],
-         "penutup":["Penguatan ...","Umpan balik ...","Informasi pertemuan berikutnya ..."]}
-      ],
-      "lkpd": {"alatBahan":["..."],"langkah":["..."],"pertanyaan":["...","...","...","...","..."]},
-      "asesmen": {
-        "diagnostik":[{"soal":"...","kunci":"..."}],
-        "formatif":[{"aspek":"...","indikator":"...","teknik":"Observasi","instrumen":"Lembar observasi"}],
-        "sumatif":[{"soal":"...","kunci":"...","skor":10}]
-      },
-      "kisi":[{"kodeTp":"TP.1.1","indikator":"...","materi":"...","level":"C3","bentuk":"Pilihan Ganda","nomor":"1","bobot":"1"}],
-      "soal": {
-        "pg":[{"no":1,"soal":"...","opsi":["A. ...","B. ...","C. ...","D. ...","E. ..."],"kunci":"B"}],
-        "uraian":[{"no":1,"soal":"...","kunci":"...","skor":10}]
-      },
-      "rubrik":[{"jenis":"Pengetahuan","aspek":"...","sangatBaik":"...","baik":"...","cukup":"...","perluBimbingan":"..."}],
-      "remedial":"...", "pengayaan":"...",
-      "refleksiGuru":["..."], "refleksiSiswa":["..."],
-      "glosarium":[{"istilah":"...","arti":"..."}],
-      "daftarPustaka":["..."]
-    }
-  ]
-}
-
-Ketentuan jumlah minimal per topik: tp 2–4; pertanyaanPemantik 2–3; sintaks 4–6; dimensiProfil 2–3; petaKonsep 3–6; uraianMateri 3; pertemuanRinci sebanyak nilai "pertemuan" (aktivitas 1–2 baris per tahap); lkpd.pertanyaan 5; asesmen.diagnostik 5; asesmen.formatif 3; asesmen.sumatif 3; kisi 5–8; soal.pg 5; soal.uraian 3; rubrik 4–6 (campur Pengetahuan/Keterampilan/Sikap); refleksi 3.
-
-Ketentuan kualitas tiap field (jangan gunakan kalimat generik/template, semua harus diturunkan dari CP/kompetensi/topik ini secara spesifik):
+const STAGE_B_QUALITY = `Ketentuan kualitas (jangan gunakan kalimat generik/template, semua harus diturunkan dari CP/kompetensi/topik ini secara spesifik):
 - dimensiProfil: pilih HANYA dimensi yang benar-benar relevan dengan kompetensi, mapel, fase, dan aktivitas pembelajaran topik ini (2-3 dimensi, tidak perlu selalu sama/lengkap semua dimensi). "penerapan" wajib menjelaskan secara singkat MENGAPA dimensi itu muncul di topik ini, bukan definisi umum dimensi tersebut.
 - lintasDisiplin: sebutkan mata pelajaran/bidang lain yang secara alami mendukung CP topik ini (mis. Bahasa Inggris → TIK/ICT, Kewarganegaraan, Sains, Seni), lengkap dengan bagaimana keterkaitannya. Jangan sebut bidang yang tidak relevan.
 - model & sintaks: sintaks HARUS mengikuti tahapan asli dari model pembelajaran yang dipilih (mis. Problem Based Learning: orientasi masalah → organisasi belajar → penyelidikan individu/kelompok → pengembangan & penyajian hasil → analisis & evaluasi; Discovery Learning, Inquiry, PJBL, dan model Pembelajaran Mendalam lain punya tahapan berbeda). Jangan gunakan sintaks generik yang sama untuk setiap topik — pilih model yang paling cocok dengan karakter materi topik ini dan tuliskan sintaks sesuai model tersebut.
 - kemitraan, lingkungan, digital: hanya rekomendasikan yang benar-benar mendukung pencapaian TP topik ini (mis. kemitraan: orang tua, perpustakaan, industri, komunitas, guru lain, native speaker, komunitas digital — bukan semua sekaligus; digital: sebutkan alat spesifik seperti Google Docs/Canva/Quizizz/Google Classroom/Padlet dan kaitkan dengan aktivitas mana yang memakainya). Sertakan alasan singkat pemilihannya.
+Ketentuan jumlah minimal per topik: pertanyaanPemantik 2–3; sintaks 4–6; dimensiProfil 2–3; petaKonsep 3–6; uraianMateri 3; pertemuanRinci sebanyak nilai "pertemuan" (aktivitas 1–2 baris per tahap); lkpd.pertanyaan 5.
+Semua isi field harus terhubung ke TP topik ini yang sudah ditentukan. Jangan mengulang kalimat yang sama antar field atau antar topik.`;
+
+const STAGE_C_QUALITY = `Ketentuan kualitas (jangan gunakan kalimat generik/template, semua harus diturunkan dari CP/TP topik ini secara spesifik):
 - asesmen.diagnostik: setiap "soal" mengukur pengetahuan prasyarat spesifik untuk topik ini (bukan soal umum lintas topik); "kunci" memuat juga kriteria keberhasilan singkat, bukan hanya jawaban.
 - asesmen.formatif: variasikan teknik antar item (observasi, unjuk kerja, tes lisan, jurnal, dsb.), masing-masing selaras dengan salah satu TP topik ini — jangan ulangi teknik yang sama di semua item.
 - asesmen.sumatif: soal harus mencakup seluruh TP topik ini (bukan hanya sebagian), "kunci" memuat pedoman penskoran ringkas.
@@ -336,11 +278,88 @@ Ketentuan kualitas tiap field (jangan gunakan kalimat generik/template, semua ha
 - pengayaan: rekomendasikan aktivitas bermakna (proyek, riset mini, presentasi, produk digital, kegiatan komunitas) yang relevan dengan topik — bukan sekadar "soal lebih sulit".
 - refleksiGuru: pertanyaan reflektif untuk guru tentang proses pembelajaran, keterlibatan murid, ketercapaian TP, dan perbaikan ke depan pada topik ini.
 - refleksiSiswa: pertanyaan reflektif untuk murid tentang pemahaman, strategi belajar, tantangan, motivasi, dan rencana perbaikan pada topik ini.
-Semua isi field harus saling terhubung: CP → topik/kompetensi → TP → ATP → materi → aktivitas → asesmen → refleksi. Jangan mengulang kalimat yang sama antar field atau antar topik.
-"pertemuan" harus proporsional dengan keluasan materi. Urutkan topik dari dasar ke lanjutan.
-Hanya JSON.`;
+Ketentuan jumlah minimal per topik: asesmen.diagnostik 5; asesmen.formatif 3; asesmen.sumatif 3; kisi 5–8; soal.pg 5; soal.uraian 3; rubrik 4–6 (campur Pengetahuan/Keterampilan/Sikap); refleksi 3.
+Semua isi field harus terhubung ke TP topik ini yang sudah ditentukan. Jangan mengulang kalimat yang sama antar field atau antar topik.`;
 
-    const cacheKey = buildCacheKey("cp-analysis", {
+function dataHeader(data: CpAnalysisInputType): string {
+  return `- Jenjang: ${data.jenjang}
+- Kelas: ${data.kelas}
+- Fase: ${data.fase}
+- Mata Pelajaran: ${data.mapel}
+- Semester: ${data.semester}
+- Alokasi JP per pertemuan: ${data.alokasiPerPertemuan}
+- Capaian Pembelajaran:
+${data.cp}`;
+}
+
+/** Ringkasan topik+TP dari Stage A, dipakai sebagai konteks wajib di Stage B/C (bukan dibuat ulang). */
+function topicsContext(
+  topics: {
+    no: number;
+    materi: string;
+    kompetensi: string;
+    pertemuan: number;
+    tp: { kode: string; rumusan: string }[];
+  }[],
+): string {
+  return topics
+    .map(
+      (t) =>
+        `${t.no}. ${t.materi} (kompetensi: ${t.kompetensi}; pertemuan: ${t.pertemuan}; TP: ${t.tp.map((x) => `${x.kode} - ${x.rumusan}`).join(" | ")})`,
+    )
+    .join("\n");
+}
+
+async function runStage<T>(
+  label: string,
+  input: { system: string; prompt: string; cacheKey: string },
+): Promise<{ raw: unknown; ms: number }> {
+  const startedAt = Date.now();
+  let text: string;
+  try {
+    ({ text } = await askAI({
+      system: input.system,
+      prompt: input.prompt,
+      cacheKey: input.cacheKey,
+      cacheTtlMs: 60 * 60 * 1000, // 1 jam — CP yang sama sering dianalisis ulang dalam satu sesi
+      retry: {
+        onRetry: (error, attempt, delayMs) => {
+          console.error(
+            `[analyzeCP:${label}] retry ${attempt} setelah ${delayMs}ms:`,
+            error instanceof Error ? error.message : error,
+          );
+        },
+      },
+    }));
+  } catch (error) {
+    throw classifyAskAIError(error);
+  }
+  const ms = Date.now() - startedAt;
+  console.log(`[analyzeCP:${label}] selesai dalam ${ms}ms`);
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(extractJson(text));
+  } catch (cause) {
+    throw new AiError(
+      "AI_INVALID_JSON",
+      `Gagal memproses hasil tahap "${label}" (format JSON tidak valid).`,
+      { cause },
+    );
+  }
+  return { raw: parsed, ms };
+}
+
+function rawTopicsArray(parsed: unknown): unknown[] {
+  const arr = Array.isArray(parsed) ? parsed : (parsed as { topics?: unknown })?.topics;
+  return Array.isArray(arr) ? arr : [];
+}
+
+export const analyzeCP = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) => CpAnalysisInput.parse(data))
+  .handler(async ({ data }) => {
+    const totalStart = Date.now();
+    const baseCacheKey = buildCacheKey("cp-analysis", {
       jenjang: data.jenjang,
       kelas: data.kelas,
       fase: data.fase,
@@ -350,44 +369,27 @@ Hanya JSON.`;
       cp: cpFingerprint(data.cp),
     });
 
-    let text: string;
-    try {
-      ({ text } = await askAI({
-        system,
-        prompt,
-        cacheKey,
-        cacheTtlMs: 60 * 60 * 1000, // 1 jam — CP yang sama sering dianalisis ulang dalam satu sesi
-        retry: {
-          onRetry: (error, attempt, delayMs) => {
-            console.error(
-              `[analyzeCP] retry ${attempt} setelah ${delayMs}ms:`,
-              error instanceof Error ? error.message : error,
-            );
-          },
-        },
-      }));
-    } catch (error) {
-      throw classifyAskAIError(error);
-    }
+    // --- Stage A: struktur (kompetensi, topik, estimasi pertemuan, TP) ---
+    // Tahap paling ringan dan wajib berhasil dulu — semua tahap berikutnya
+    // dibangun di atas hasil ini, bukan menganalisis ulang CP dari nol.
+    const stageA = await runStage("struktur", {
+      system: SYSTEM_PROMPT,
+      cacheKey: `${baseCacheKey}:struktur`,
+      prompt: `Analisis CP berikut, bagi menjadi 3–6 materi/topik logis. HANYA hasilkan struktur dasar (kompetensi, topik, estimasi pertemuan, tujuan pembelajaran) — JANGAN membuat materi ajar, aktivitas, atau asesmen di tahap ini.
 
-    let parsed: any;
-    try {
-      parsed = JSON.parse(extractJson(text));
-    } catch (cause) {
-      throw new AiError(
-        "AI_INVALID_JSON",
-        "Gagal memproses hasil analisis AI (format JSON tidak valid).",
-        { cause },
-      );
-    }
-    const rawTopics = Array.isArray(parsed) ? parsed : parsed?.topics;
-    if (!Array.isArray(rawTopics) || rawTopics.length === 0)
+Data:
+${dataHeader(data)}
+
+Keluarkan JSON PERSIS dengan bentuk:
+{"topics":[{"no":1,"materi":"Judul topik","kompetensi":"Kompetensi utama topik","pertemuan":2,"alokasi":"2 x (${data.alokasiPerPertemuan})","tp":[{"kode":"TP.1.1","rumusan":"...","indikator":"...","kktp":"kriteria ketercapaian","level":"C3"}]}]}
+Ketentuan: tp 2–4 per topik. "pertemuan" proporsional dengan keluasan materi. Urutkan topik dari dasar ke lanjutan. Hanya JSON.`,
+    });
+    const rawStageATopics = rawTopicsArray(stageA.raw);
+    if (rawStageATopics.length === 0)
       throw new AiError("AI_EMPTY_RESULT", "Hasil analisis AI kosong atau tidak berisi topik.");
 
-    // Validate the RAW AI output before normalizeTopic's own defaulting (e.g.
-    // clamping a missing pertemuan to 1, or synthesizing a placeholder TP)
-    // has a chance to mask a genuine AI defect as if it were valid.
-    const invalidRaw = (rawTopics as unknown[]).find((raw) => {
+    // Validasi RAW sebelum normalizeTopic (yang punya fallback) sempat menutupi cacat.
+    const invalidRaw = rawStageATopics.find((raw) => {
       const t = raw as { materi?: unknown; pertemuan?: unknown; tp?: unknown };
       const materiEmpty = !String(t?.materi ?? "").trim();
       const pertemuanValue = t?.pertemuan;
@@ -406,7 +408,119 @@ Hanya JSON.`;
       );
     }
 
-    const topics = rawTopics.map((t, i) => normalizeTopic(t, i, data.alokasiPerPertemuan));
+    const structFor = (raw: unknown) => {
+      const t = raw as {
+        no?: unknown;
+        materi?: unknown;
+        kompetensi?: unknown;
+        pertemuan?: unknown;
+        tp?: unknown;
+      };
+      return {
+        no: Number(t?.no) || 0,
+        materi: S(t?.materi),
+        kompetensi: S(t?.kompetensi),
+        pertemuan: Math.max(1, parseInt(S(t?.pertemuan, "1"), 10) || 1),
+        tp: A<{
+          kode?: unknown;
+          rumusan?: unknown;
+          indikator?: unknown;
+          kktp?: unknown;
+          level?: unknown;
+        }>(t?.tp).map((x) => ({
+          kode: S(x?.kode),
+          rumusan: S(x?.rumusan),
+          indikator: S(x?.indikator),
+          kktp: S(x?.kktp),
+          level: S(x?.level, "C3"),
+        })),
+      };
+    };
+    const stageAStructs = rawStageATopics.map(structFor);
+    const ctx = topicsContext(stageAStructs);
+
+    // Stage B (materi & pedagogi) dan Stage C (asesmen & modul) generate secara
+    // independen dari struktur Stage A yang sama — kalau salah satu gagal usai
+    // retry, Stage A tidak hilang/tidak perlu dianalisis ulang (tetap ter-cache).
+    const stageB = await runStage("materi-pedagogi", {
+      system: SYSTEM_PROMPT,
+      cacheKey: `${baseCacheKey}:materi-pedagogi`,
+      prompt: `Berikut topik & TP yang SUDAH ditentukan (jangan diubah, jangan dianalisis ulang). Lengkapi bagian materi & pedagogi untuk tiap topik.
+
+Data:
+${dataHeader(data)}
+
+Topik & TP (urutan dan jumlah harus sama persis di jawaban Anda):
+${ctx}
+
+Keluarkan JSON PERSIS dengan bentuk (array "topics" urut sesuai nomor di atas, TANPA field no/materi/kompetensi/pertemuan/tp):
+{"topics":[{
+  "pemahamanBermakna":"...","pertanyaanPemantik":["...","..."],
+  "model":"Problem Based Learning","alasanModel":"...","sintaks":["Sintaks 1","..."],"metode":"Diskusi, penugasan, presentasi",
+  "lintasDisiplin":"...","dimensiProfil":[{"dimensi":"Bernalar Kritis","penerapan":"..."}],
+  "materiFaktual":"...","materiKonseptual":"...","materiProsedural":"...","materiMetakognitif":"...",
+  "pengetahuanAwal":"...","minatBelajar":"...","kebutuhanBelajar":"...",
+  "kemitraan":"...","lingkungan":"...","digital":"...",
+  "petaKonsep":["Konsep utama > sub konsep","..."],
+  "uraianMateri":[{"judul":"Sub-bab","isi":"2-4 kalimat penjelasan mendalam disertai contoh"}],
+  "rangkuman":"...",
+  "pertemuanRinci":[{"pertemuan":1,"awal":["Pembukaan & doa (mindful) ...","Apersepsi ...","Penyampaian tujuan ..."],"memahami":[{"guru":"...","siswa":"...","media":"...","alokasi":"15 menit"}],"mengaplikasi":[{"guru":"...","siswa":"...","media":"...","alokasi":"25 menit"}],"merefleksi":[{"guru":"...","siswa":"...","media":"...","alokasi":"10 menit"}],"penutup":["Penguatan ...","Umpan balik ...","Informasi pertemuan berikutnya ..."]}],
+  "lkpd":{"alatBahan":["..."],"langkah":["..."],"pertanyaan":["...","...","...","...","..."]}
+}]}
+
+${STAGE_B_QUALITY}
+Hanya JSON.`,
+    });
+
+    const stageC = await runStage("asesmen-modul", {
+      system: SYSTEM_PROMPT,
+      cacheKey: `${baseCacheKey}:asesmen-modul`,
+      prompt: `Berikut topik & TP yang SUDAH ditentukan (jangan diubah, jangan dianalisis ulang). Lengkapi bagian asesmen & modul untuk tiap topik.
+
+Data:
+${dataHeader(data)}
+
+Topik & TP (urutan dan jumlah harus sama persis di jawaban Anda):
+${ctx}
+
+Keluarkan JSON PERSIS dengan bentuk (array "topics" urut sesuai nomor di atas, TANPA field no/materi/kompetensi/pertemuan/tp):
+{"topics":[{
+  "asesmen":{"diagnostik":[{"soal":"...","kunci":"..."}],"formatif":[{"aspek":"...","indikator":"...","teknik":"Observasi","instrumen":"Lembar observasi"}],"sumatif":[{"soal":"...","kunci":"...","skor":10}]},
+  "kisi":[{"kodeTp":"TP.1.1","indikator":"...","materi":"...","level":"C3","bentuk":"Pilihan Ganda","nomor":"1","bobot":"1"}],
+  "soal":{"pg":[{"no":1,"soal":"...","opsi":["A. ...","B. ...","C. ...","D. ...","E. ..."],"kunci":"B"}],"uraian":[{"no":1,"soal":"...","kunci":"...","skor":10}]},
+  "rubrik":[{"jenis":"Pengetahuan","aspek":"...","sangatBaik":"...","baik":"...","cukup":"...","perluBimbingan":"..."}],
+  "remedial":"...","pengayaan":"...",
+  "refleksiGuru":["..."],"refleksiSiswa":["..."],
+  "glosarium":[{"istilah":"...","arti":"..."}],"daftarPustaka":["..."]
+}]}
+
+${STAGE_C_QUALITY}
+Hanya JSON.`,
+    });
+
+    const rawStageBTopics = rawTopicsArray(stageB.raw);
+    const rawStageCTopics = rawTopicsArray(stageC.raw);
+
+    // Gabungkan per indeks (bukan bergantung pada AI mengembalikan "no" yang
+    // konsisten) — Stage A tetap jadi sumber kebenaran untuk struktur.
+    const topics = stageAStructs.map((struct, i) => {
+      const merged = {
+        ...struct,
+        ...(rawStageBTopics[i] ?? {}),
+        ...(rawStageCTopics[i] ?? {}),
+        // Field struktur Stage A tidak boleh tertimpa meski Stage B/C ikut mengirimnya.
+        no: struct.no || i + 1,
+        materi: struct.materi,
+        kompetensi: struct.kompetensi,
+        pertemuan: struct.pertemuan,
+        tp: struct.tp,
+      };
+      return normalizeTopic(merged, i, data.alokasiPerPertemuan);
+    });
+
+    console.log(
+      `[analyzeCP] total ${Date.now() - totalStart}ms (struktur ${stageA.ms}ms, materi-pedagogi ${stageB.ms}ms, asesmen-modul ${stageC.ms}ms)`,
+    );
 
     const master: MasterData = {
       jenjang: data.jenjang,
