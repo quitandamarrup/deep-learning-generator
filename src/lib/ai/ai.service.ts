@@ -44,12 +44,33 @@ export interface AskAIResult {
   cached: boolean;
 }
 
+// --- TEMPORARY DEBUG LOGGING (runtime configuration audit) -----------------
+// Requested to diagnose why the router keeps falling back to Lovable
+// Gateway. Prints, once per call, whether each provider's required env var
+// is actually present in *this* running process — without exposing the key
+// values themselves. Safe to remove once the live env vars are confirmed.
+function logProviderConfigAudit(chain: readonly string[]) {
+  const envVarFor: Record<string, string> = {
+    "google-ai-studio": "GOOGLE_API_KEY",
+    openrouter: "OPENROUTER_API_KEY",
+    "lovable-gateway": "LOVABLE_API_KEY",
+  };
+  const report = chain.map((providerId) => {
+    const envVar = envVarFor[providerId];
+    const present = Boolean(envVar && process.env[envVar]);
+    return `${providerId}: ${envVar ?? "?"}=${present ? "SET" : "MISSING"}`;
+  });
+  console.log(`[AIRouter:AUDIT] Urutan prioritas: ${chain.join(" -> ")}`);
+  console.log(`[AIRouter:AUDIT] Status env var per provider: ${report.join(" | ")}`);
+}
+
 async function callWithFallbackChain(
   system: string,
   prompt: string,
   retry?: RetryOptions,
 ): Promise<string> {
   const chain = getProviderChain();
+  logProviderConfigAudit(chain);
   const attempted: { provider: string; error: AiError }[] = [];
   const skipped: string[] = [];
 
@@ -89,6 +110,9 @@ async function callWithFallbackChain(
 
       console.log(
         `[AIRouter] Provider terpilih: "${providerId}" (model: ${modelId}) — selesai dalam ${Date.now() - startedAt}ms, percobaan: ${retryCount + 1}.`,
+      );
+      console.log(
+        `[AIRouter:AUDIT] Active provider: ${providerId} | Providers skipped: ${skipped.length ? skipped.join(", ") : "(none)"} | Reason: ${skipped.length ? "missing required env var (see above)" : "n/a"}`,
       );
       return text;
     } catch (error) {
