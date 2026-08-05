@@ -1,6 +1,6 @@
 import type { LanguageModel } from "ai";
 import { DEFAULT_MODEL, PROVIDERS } from "./providers";
-import type { AIModelId, ModelResolver, ProviderId } from "./providers";
+import type { AIModelId, ProviderId } from "./providers";
 
 // ai.service.ts (and everything upstream of it) only ever calls getModel()
 // here — it never imports providers.ts directly. This is the one place that
@@ -20,21 +20,12 @@ function resolveActiveProviderId(): ProviderId {
   return configured;
 }
 
-// Memoized per provider id so switching AI_PROVIDER (e.g. in tests) doesn't
-// require a process restart, while normal requests reuse one resolver instance.
-let cachedResolver: ModelResolver | undefined;
-let cachedProviderId: ProviderId | undefined;
-
-function getActiveResolver(): ModelResolver {
+function getActiveResolver(apiKey: string) {
   const providerId = resolveActiveProviderId();
-  if (cachedResolver && cachedProviderId === providerId) return cachedResolver;
-
-  cachedResolver = PROVIDERS[providerId].createResolver();
-  cachedProviderId = providerId;
-  return cachedResolver;
+  return PROVIDERS[providerId].createResolver(apiKey);
 }
 
 /** Resolve a chat-completion model handle from whichever provider is currently active. */
-export function getModel(modelId: AIModelId = DEFAULT_MODEL): LanguageModel {
-  return getActiveResolver()(modelId);
+export function getModel(apiKey: string, modelId: AIModelId = DEFAULT_MODEL): LanguageModel {
+  return getActiveResolver(apiKey)(modelId);
 }

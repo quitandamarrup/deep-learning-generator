@@ -9,6 +9,8 @@ import { getStatusCode } from "./retry";
 export type AiErrorCode =
   | "AI_TIMEOUT"
   | "AI_RATE_LIMIT"
+  | "AI_CREDITS_EXHAUSTED"
+  | "AI_UNAUTHORIZED"
   | "AI_INVALID_JSON"
   | "AI_EMPTY_RESULT"
   | "AI_VALIDATION_ERROR"
@@ -34,6 +36,22 @@ export function classifyAskAIError(error: unknown): AiError {
   if (error instanceof AiError) return error;
 
   const status = getStatusCode(error);
+  if (status === 402) {
+    return new AiError(
+      "AI_CREDITS_EXHAUSTED",
+      "Kredit layanan AI habis. Tambahkan kredit workspace sebelum mencoba kembali.",
+      { cause: error },
+    );
+  }
+
+  if (status === 401 || status === 403) {
+    return new AiError(
+      "AI_UNAUTHORIZED",
+      "Layanan AI tidak dapat mengautentikasi permintaan aplikasi.",
+      { cause: error },
+    );
+  }
+
   if (status === 429) {
     return new AiError(
       "AI_RATE_LIMIT",

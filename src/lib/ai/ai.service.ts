@@ -41,9 +41,12 @@ export async function askAI({
   cacheTtlMs,
   retry,
 }: AskAIInput): Promise<AskAIResult> {
+  const apiKey = process.env["LOVABLE_API_KEY"];
+  if (!apiKey) throw new Error("Missing LOVABLE_API_KEY");
+
   const call = () =>
     withRetry(async () => {
-      const { text } = await generateText({ model: getModel(model), system, prompt });
+      const { text } = await generateText({ model: getModel(apiKey, model), system, prompt });
       return text;
     }, retry);
 
