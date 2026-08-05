@@ -12,7 +12,8 @@ export type AiErrorCode =
   | "AI_INVALID_JSON"
   | "AI_EMPTY_RESULT"
   | "AI_VALIDATION_ERROR"
-  | "AI_PROVIDER_ERROR";
+  | "AI_PROVIDER_ERROR"
+  | "AI_ALL_PROVIDERS_FAILED";
 
 export class AiError extends Error {
   readonly code: AiErrorCode;
