@@ -61,6 +61,8 @@ import {
   FileType,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { AnalyzingOverlay, type AnalyzePhase } from "@/components/AnalyzingOverlay";
+import { AnalyzeErrorDialog } from "@/components/AnalyzeErrorDialog";
 import { lovable } from "@/integrations/lovable/index";
 import type { User } from "@supabase/supabase-js";
 
@@ -175,6 +177,8 @@ function Index() {
   const [profileFound, setProfileFound] = useState<boolean | null>(null); // null = belum dicek
 
   const [analyzing, setAnalyzing] = useState(false);
+  const [analyzePhase, setAnalyzePhase] = useState<AnalyzePhase>("idle");
+  const [analyzeErrorOpen, setAnalyzeErrorOpen] = useState(false);
   const [topics, setTopics] = useState<CpTopic[] | null>(null);
   const [master, setMaster] = useState<MasterData | null>(null);
   // MASTER_KURIKULUM: sumber data utama seluruh administrasi pembelajaran
@@ -420,6 +424,8 @@ function Index() {
       }
     }
     setAnalyzing(true);
+    setAnalyzeErrorOpen(false);
+    setAnalyzePhase("loading");
     try {
       const res = await runAnalyze({
         data: {
@@ -438,13 +444,16 @@ function Index() {
       void persistMasterKurikulum(res.master, res.topics);
       setDocs({}); // invalidate old docs
       setActiveTab(null);
+      setAnalyzePhase("success");
+      setTimeout(() => setAnalyzePhase("idle"), 1000);
       setTimeout(
         () => document.getElementById("cp-analysis")?.scrollIntoView({ behavior: "smooth" }),
         100,
       );
     } catch (e) {
       console.error(e);
-      toast.error("Gagal menganalisis CP. Coba lagi.");
+      setAnalyzePhase("idle");
+      setAnalyzeErrorOpen(true);
     } finally {
       setAnalyzing(false);
     }
@@ -668,6 +677,15 @@ function Index() {
   return (
     <div className="min-h-screen bg-slate-50 print:bg-white">
       <Toaster position="top-center" />
+      <AnalyzingOverlay phase={analyzePhase} />
+      <AnalyzeErrorDialog
+        open={analyzeErrorOpen}
+        onCancel={() => setAnalyzeErrorOpen(false)}
+        onRetry={() => {
+          setAnalyzeErrorOpen(false);
+          void handleAnalyze();
+        }}
+      />
       <header className="bg-[#0f2b5b] text-white shadow-md print:hidden">
         <div className="mx-auto max-w-6xl px-4 py-6 sm:py-8">
           <div className="flex items-center gap-3">
