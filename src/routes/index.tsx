@@ -15,11 +15,7 @@ import {
 import { checkAccess, redeemToken, isAdmin as isAdminFn } from "@/lib/tokens.functions";
 import { downloadDocx, downloadPdf, downloadZipOfDocs } from "@/lib/exporters";
 import { buildModulAjarDocxBlob, downloadModulAjarDocx } from "@/lib/modul-ajar-template";
-import {
-  buildMasterKurikulum,
-  cpFingerprint,
-  type MasterKurikulum,
-} from "@/lib/master-kurikulum";
+import { buildMasterKurikulum, cpFingerprint, type MasterKurikulum } from "@/lib/master-kurikulum";
 import { loadMasterKurikulum, saveMasterKurikulum } from "@/lib/master-kurikulum.functions";
 import { getTeacherProfile } from "@/lib/teacher-profile.functions";
 
@@ -78,8 +74,7 @@ export const Route = createFileRoute("/")({
       { property: "og:title", content: "Generator Administrasi Pembelajaran" },
       {
         property: "og:description",
-        content:
-          "Buat seluruh administrasi pembelajaran otomatis dari satu Capaian Pembelajaran.",
+        content: "Buat seluruh administrasi pembelajaran otomatis dari satu Capaian Pembelajaran.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -155,7 +150,16 @@ function saveGuestForm(f: FormState) {
 }
 
 // Docs where a specific topic is required
-const TOPIC_SCOPED: DocType[] = ["RPP", "MODUL", "MATERI", "LKPD", "ASESMEN", "KISI", "SOAL", "RUBRIK"];
+const TOPIC_SCOPED: DocType[] = [
+  "RPP",
+  "MODUL",
+  "MATERI",
+  "LKPD",
+  "ASESMEN",
+  "KISI",
+  "SOAL",
+  "RUBRIK",
+];
 
 function Index() {
   const runAnalyze = useServerFn(analyzeCP);
@@ -179,6 +183,10 @@ function Index() {
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzePhase, setAnalyzePhase] = useState<AnalyzePhase>("idle");
   const [analyzeErrorOpen, setAnalyzeErrorOpen] = useState(false);
+  const [analyzeError, setAnalyzeError] = useState<{
+    description: string;
+    canRetry: boolean;
+  } | null>(null);
   const [topics, setTopics] = useState<CpTopic[] | null>(null);
   const [master, setMaster] = useState<MasterData | null>(null);
   // MASTER_KURIKULUM: sumber data utama seluruh administrasi pembelajaran
@@ -263,7 +271,9 @@ function Index() {
       setHasAccess(false);
       return;
     }
-    runIsAdmin().then((r) => setIsAdmin(r.isAdmin)).catch(() => {});
+    runIsAdmin()
+      .then((r) => setIsAdmin(r.isAdmin))
+      .catch(() => {});
   }, [user, runIsAdmin]);
 
   useEffect(() => {
@@ -416,7 +426,15 @@ function Index() {
   }, [user, form.mapel, form.semester, form.tahunAjaran]);
 
   const handleAnalyze = async () => {
-    const need: (keyof FormState)[] = ["jenjang", "kelas", "fase", "mapel", "semester", "cp", "alokasi"];
+    const need: (keyof FormState)[] = [
+      "jenjang",
+      "kelas",
+      "fase",
+      "mapel",
+      "semester",
+      "cp",
+      "alokasi",
+    ];
     for (const k of need) {
       if (!form[k]?.trim()) {
         toast.error("Lengkapi Jenjang, Kelas, Fase, Mapel, Semester, CP, dan Alokasi JP.");
@@ -451,8 +469,16 @@ function Index() {
         100,
       );
     } catch (e) {
-      console.error(e);
+      const message = e instanceof Error ? e.message : "";
+      const creditsExhausted = message.includes("Kredit layanan AI habis");
+      if (!creditsExhausted) console.warn("Analisis CP gagal:", e);
       setAnalyzePhase("idle");
+      setAnalyzeError({
+        description: creditsExhausted
+          ? "Kredit layanan AI workspace sedang habis. Tambahkan kredit melalui Settings → Plans & credits, lalu jalankan Analisis CP kembali. Data CP yang sudah Anda isi tetap tersimpan."
+          : "Layanan AI belum dapat menyelesaikan analisis. Silakan coba kembali. Data CP yang sudah Anda isi tidak hilang.",
+        canRetry: !creditsExhausted,
+      });
       setAnalyzeErrorOpen(true);
     } finally {
       setAnalyzing(false);
@@ -463,7 +489,9 @@ function Index() {
     setTopics((ts) => (ts ? ts.map((t, i) => (i === idx ? { ...t, ...patch } : t)) : ts));
   };
   const removeTopic = (idx: number) => {
-    setTopics((ts) => (ts ? ts.filter((_, i) => i !== idx).map((t, i) => ({ ...t, no: i + 1 })) : ts));
+    setTopics((ts) =>
+      ts ? ts.filter((_, i) => i !== idx).map((t, i) => ({ ...t, no: i + 1 })) : ts,
+    );
   };
   const addTopic = () => {
     setTopics((ts) => {
@@ -670,9 +698,8 @@ function Index() {
     );
   };
 
-
   const generatedList = (Object.keys(docs) as DocType[]).filter((d) => !!docs[d]);
-  const currentTab = activeTab && docs[activeTab] ? activeTab : generatedList[0] ?? null;
+  const currentTab = activeTab && docs[activeTab] ? activeTab : (generatedList[0] ?? null);
 
   return (
     <div className="min-h-screen bg-slate-50 print:bg-white">
@@ -680,6 +707,8 @@ function Index() {
       <AnalyzingOverlay phase={analyzePhase} />
       <AnalyzeErrorDialog
         open={analyzeErrorOpen}
+        description={analyzeError?.description}
+        canRetry={analyzeError?.canRetry}
         onCancel={() => setAnalyzeErrorOpen(false)}
         onRetry={() => {
           setAnalyzeErrorOpen(false);
@@ -714,7 +743,11 @@ function Index() {
               )}
               {isAdmin && (
                 <Link to="/admin/tokens">
-                  <Button size="sm" variant="secondary" className="bg-white/10 text-white hover:bg-white/20 border-0">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="bg-white/10 text-white hover:bg-white/20 border-0"
+                  >
                     <Shield className="mr-1.5 h-4 w-4" /> Admin
                   </Button>
                 </Link>
@@ -755,7 +788,10 @@ function Index() {
                     <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
                   ) : (
                     <svg className="mr-1.5 h-4 w-4" viewBox="0 0 24 24" aria-hidden>
-                      <path fill="#EA4335" d="M12 10.2v3.9h5.5c-.2 1.4-1.6 4-5.5 4-3.3 0-6-2.7-6-6.1s2.7-6.1 6-6.1c1.9 0 3.1.8 3.8 1.5l2.6-2.5C16.9 3.4 14.7 2.4 12 2.4 6.7 2.4 2.4 6.7 2.4 12S6.7 21.6 12 21.6c6.9 0 9.5-4.8 9.5-7.3 0-.5 0-.9-.1-1.3H12z" />
+                      <path
+                        fill="#EA4335"
+                        d="M12 10.2v3.9h5.5c-.2 1.4-1.6 4-5.5 4-3.3 0-6-2.7-6-6.1s2.7-6.1 6-6.1c1.9 0 3.1.8 3.8 1.5l2.6-2.5C16.9 3.4 14.7 2.4 12 2.4 6.7 2.4 2.4 6.7 2.4 12S6.7 21.6 12 21.6c6.9 0 9.5-4.8 9.5-7.3 0-.5 0-.9-.1-1.3H12z"
+                      />
                     </svg>
                   )}
                   Masuk dengan Google
@@ -767,7 +803,10 @@ function Index() {
       </header>
 
       <main className="mx-auto max-w-6xl px-4 py-6 sm:py-8">
-        <section id="form-section" className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:p-7 print:hidden">
+        <section
+          id="form-section"
+          className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:p-7 print:hidden"
+        >
           <h2 className="text-lg font-semibold text-slate-800">Data Perencanaan</h2>
           <p className="text-sm text-slate-500">
             Materi/Topik & jumlah pertemuan diperoleh otomatis dari Analisis CP.
@@ -900,8 +939,12 @@ function Index() {
                   <tr className="bg-slate-100 text-left text-slate-700">
                     <th className="border border-slate-200 px-2 py-2 w-16">Pilih</th>
                     <th className="border border-slate-200 px-2 py-2 w-10">No</th>
-                    <th className="border border-slate-200 px-2 py-2 min-w-[180px]">Materi/Topik</th>
-                    <th className="border border-slate-200 px-2 py-2 min-w-[220px]">Kompetensi/Tujuan Utama</th>
+                    <th className="border border-slate-200 px-2 py-2 min-w-[180px]">
+                      Materi/Topik
+                    </th>
+                    <th className="border border-slate-200 px-2 py-2 min-w-[220px]">
+                      Kompetensi/Tujuan Utama
+                    </th>
                     <th className="border border-slate-200 px-2 py-2 w-24">Pertemuan</th>
                     <th className="border border-slate-200 px-2 py-2 min-w-[140px]">Alokasi JP</th>
                     <th className="border border-slate-200 px-2 py-2 w-16">Aksi</th>
@@ -973,14 +1016,16 @@ function Index() {
 
             {/* Doc chooser */}
             <div className="mt-6">
-              <h3 className="text-sm font-semibold text-slate-800">Pilih Dokumen yang Akan Dibuat</h3>
+              <h3 className="text-sm font-semibold text-slate-800">
+                Pilih Dokumen yang Akan Dibuat
+              </h3>
               <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
                 {DOC_TYPES.map((d) => (
-                  <label key={d} className="flex items-start gap-2 rounded-md border border-slate-200 p-2 hover:bg-slate-50 cursor-pointer">
-                    <Checkbox
-                      checked={selectedDocs.has(d)}
-                      onCheckedChange={() => toggleDoc(d)}
-                    />
+                  <label
+                    key={d}
+                    className="flex items-start gap-2 rounded-md border border-slate-200 p-2 hover:bg-slate-50 cursor-pointer"
+                  >
+                    <Checkbox checked={selectedDocs.has(d)} onCheckedChange={() => toggleDoc(d)} />
                     <div className="text-sm">
                       <div className="font-medium text-slate-800">{DOC_LABELS[d]}</div>
                       {TOPIC_SCOPED.includes(d) && (
@@ -1033,7 +1078,10 @@ function Index() {
         )}
 
         {generatedList.length > 0 && (
-          <section id="docs-result" className="mt-8 rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:p-7 print:hidden">
+          <section
+            id="docs-result"
+            className="mt-8 rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:p-7 print:hidden"
+          >
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 className="text-lg font-semibold text-slate-800">Preview Dokumen</h2>
@@ -1072,15 +1120,25 @@ function Index() {
             {currentTab && (
               <div className="mt-4">
                 <div className="mb-3 flex flex-wrap gap-2">
-                  <Button size="sm" variant="outline" onClick={() => handleDownload(currentTab, "docx")}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleDownload(currentTab, "docx")}
+                  >
                     <FileType className="mr-1.5 h-4 w-4" /> DOCX
                   </Button>
-                  <Button size="sm" variant="outline" onClick={() => handleDownload(currentTab, "pdf")}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleDownload(currentTab, "pdf")}
+                  >
                     <Download className="mr-1.5 h-4 w-4" /> PDF
                   </Button>
                 </div>
                 <article className="rpp-doc rounded-lg border border-slate-200 bg-white p-6 shadow-sm sm:p-10">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{docs[currentTab] ?? ""}</ReactMarkdown>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {docs[currentTab] ?? ""}
+                  </ReactMarkdown>
                 </article>
               </div>
             )}
@@ -1205,14 +1263,17 @@ function Index() {
             <Button variant="outline" onClick={() => setTokenOpen(false)}>
               Batal
             </Button>
-            <Button onClick={handleVerifyToken} disabled={verifying} className="bg-[#0f2b5b] hover:bg-[#0a1f45]">
+            <Button
+              onClick={handleVerifyToken}
+              disabled={verifying}
+              className="bg-[#0f2b5b] hover:bg-[#0a1f45]"
+            >
               {verifying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Aktifkan Token
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
     </div>
   );
 }

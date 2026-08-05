@@ -1,5 +1,5 @@
 import { generateText } from "ai";
-import { AiError } from "./ai-errors";
+import { AiError, classifyAskAIError } from "./ai-errors";
 import { withCache } from "./cache";
 import { getDefaultModelId, getProviderChain, getResolver } from "./router";
 import type { RetryOptions } from "./retry";
@@ -19,7 +19,11 @@ import { withRetry } from "./retry";
 // the next provider automatically — no user action, no change to the
 // request. Only if every provider in the chain fails does askAI throw a
 // single friendly error; the caller (and ultimately the teacher) never
-// finds out which providers were tried or why any of them failed.
+// finds out which providers were tried or why any of them failed — except
+// for the one specific, actionable case where every attempted provider
+// failed because of exhausted credits, which is worth telling the person
+// who can actually fix it (top up credits) rather than hiding behind a
+// generic "try again later".
 
 export interface AskAIInput {
   system: string;
@@ -46,7 +50,8 @@ async function callWithFallbackChain(
   retry?: RetryOptions,
 ): Promise<string> {
   const chain = getProviderChain();
-  const failures: { provider: string; reason: string }[] = [];
+  const attempted: { provider: string; error: AiError }[] = [];
+  const skipped: string[] = [];
 
   for (const providerId of chain) {
     let resolver;
@@ -55,7 +60,7 @@ async function callWithFallbackChain(
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
       console.warn(`[AIRouter] Lewati provider "${providerId}": ${reason} (belum dikonfigurasi)`);
-      failures.push({ provider: providerId, reason });
+      skipped.push(providerId);
       continue;
     }
 
@@ -87,18 +92,32 @@ async function callWithFallbackChain(
       );
       return text;
     } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error);
+      const classified = classifyAskAIError(error);
       console.error(
-        `[AIRouter] Provider "${providerId}" gagal total setelah ${retryCount + 1} percobaan (${Date.now() - startedAt}ms): ${reason}`,
+        `[AIRouter] Provider "${providerId}" gagal total setelah ${retryCount + 1} percobaan (${Date.now() - startedAt}ms): [${classified.code}] ${classified.message}`,
       );
-      failures.push({ provider: providerId, reason });
+      attempted.push({ provider: providerId, error: classified });
       continue; // otomatis coba provider berikutnya dalam rantai
     }
   }
 
-  console.error("[AIRouter] Semua provider gagal:", failures);
-  // Tidak pernah membocorkan alasan/error mentah tiap provider ke pengguna —
-  // guru hanya melihat satu pesan ramah, apa pun penyebab teknisnya.
+  console.error(
+    "[AIRouter] Semua provider gagal:",
+    attempted.map((a) => `${a.provider}=${a.error.code}`),
+    skipped.length ? `(dilewati karena belum dikonfigurasi: ${skipped.join(", ")})` : "",
+  );
+
+  // Kalau setiap provider yang benar-benar dicoba (bukan yang dilewati
+  // karena belum dikonfigurasi) gagal karena kredit habis, itu satu-satunya
+  // kegagalan yang sebaiknya diberi tahu apa adanya — guru/admin bisa
+  // langsung menambah kredit, alih-alih tersesat dengan pesan generik.
+  if (attempted.length > 0 && attempted.every((a) => a.error.code === "AI_CREDITS_EXHAUSTED")) {
+    throw attempted[attempted.length - 1].error;
+  }
+
+  // Untuk kegagalan lain, tidak pernah membocorkan alasan/error mentah tiap
+  // provider ke pengguna — guru hanya melihat satu pesan ramah, apa pun
+  // penyebab teknisnya.
   throw new AiError(
     "AI_ALL_PROVIDERS_FAILED",
     "Maaf, layanan AI sedang tidak tersedia saat ini. Silakan coba beberapa saat lagi.",
