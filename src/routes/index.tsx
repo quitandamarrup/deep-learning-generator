@@ -179,6 +179,10 @@ function Index() {
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzePhase, setAnalyzePhase] = useState<AnalyzePhase>("idle");
   const [analyzeErrorOpen, setAnalyzeErrorOpen] = useState(false);
+  const [analyzeError, setAnalyzeError] = useState<{
+    description: string;
+    canRetry: boolean;
+  } | null>(null);
   const [topics, setTopics] = useState<CpTopic[] | null>(null);
   const [master, setMaster] = useState<MasterData | null>(null);
   // MASTER_KURIKULUM: sumber data utama seluruh administrasi pembelajaran
@@ -451,8 +455,16 @@ function Index() {
         100,
       );
     } catch (e) {
-      console.error(e);
+      const message = e instanceof Error ? e.message : "";
+      const creditsExhausted = message.includes("Kredit layanan AI habis");
+      if (!creditsExhausted) console.warn("Analisis CP gagal:", e);
       setAnalyzePhase("idle");
+      setAnalyzeError({
+        description: creditsExhausted
+          ? "Kredit layanan AI workspace sedang habis. Tambahkan kredit melalui Settings → Plans & credits, lalu jalankan Analisis CP kembali. Data CP yang sudah Anda isi tetap tersimpan."
+          : "Layanan AI belum dapat menyelesaikan analisis. Silakan coba kembali. Data CP yang sudah Anda isi tidak hilang.",
+        canRetry: !creditsExhausted,
+      });
       setAnalyzeErrorOpen(true);
     } finally {
       setAnalyzing(false);
@@ -680,6 +692,8 @@ function Index() {
       <AnalyzingOverlay phase={analyzePhase} />
       <AnalyzeErrorDialog
         open={analyzeErrorOpen}
+        description={analyzeError?.description}
+        canRetry={analyzeError?.canRetry}
         onCancel={() => setAnalyzeErrorOpen(false)}
         onRetry={() => {
           setAnalyzeErrorOpen(false);
