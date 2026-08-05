@@ -442,7 +442,7 @@ Ketentuan: tp 2–4 per topik. "pertemuan" proporsional dengan keluasan materi. 
     // Stage B (materi & pedagogi) dan Stage C (asesmen & modul) generate secara
     // independen dari struktur Stage A yang sama — kalau salah satu gagal usai
     // retry, Stage A tidak hilang/tidak perlu dianalisis ulang (tetap ter-cache).
-    const stageB = await runStage("materi-pedagogi", {
+    const stageBPromise = runStage("materi-pedagogi", {
       system: SYSTEM_PROMPT,
       cacheKey: `${baseCacheKey}:materi-pedagogi`,
       prompt: `Berikut topik & TP yang SUDAH ditentukan (jangan diubah, jangan dianalisis ulang). Lengkapi bagian materi & pedagogi untuk tiap topik.
@@ -472,7 +472,7 @@ ${STAGE_B_QUALITY}
 Hanya JSON.`,
     });
 
-    const stageC = await runStage("asesmen-modul", {
+    const stageCPromise = runStage("asesmen-modul", {
       system: SYSTEM_PROMPT,
       cacheKey: `${baseCacheKey}:asesmen-modul`,
       prompt: `Berikut topik & TP yang SUDAH ditentukan (jangan diubah, jangan dianalisis ulang). Lengkapi bagian asesmen & modul untuk tiap topik.
@@ -498,6 +498,7 @@ ${STAGE_C_QUALITY}
 Hanya JSON.`,
     });
 
+    const [stageB, stageC] = await Promise.all([stageBPromise, stageCPromise]);
     const rawStageBTopics = rawTopicsArray(stageB.raw);
     const rawStageCTopics = rawTopicsArray(stageC.raw);
 

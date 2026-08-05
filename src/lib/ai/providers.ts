@@ -12,16 +12,13 @@ export type ModelResolver = (modelId: string) => LanguageModel;
 export type ProviderId = "lovable-gateway";
 
 export interface ProviderDefinition {
-  /** Builds this provider's model resolver. Called lazily and memoized by router.ts. */
-  createResolver: () => ModelResolver;
+  /** Builds a request-scoped model resolver with the server-provided gateway key. */
+  createResolver: (apiKey: string) => ModelResolver;
 }
 
-function createLovableGatewayResolver(): ModelResolver {
-  const apiKey = process.env.LOVABLE_API_KEY;
-  if (!apiKey) throw new Error("Missing LOVABLE_API_KEY");
-
+function createLovableGatewayResolver(apiKey: string): ModelResolver {
   const provider = createOpenAICompatible({
-    name: "lovable-ai-gateway",
+    name: "lovable",
     baseURL: "https://ai.gateway.lovable.dev/v1",
     headers: {
       "Lovable-API-Key": apiKey,
